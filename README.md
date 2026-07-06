@@ -17,8 +17,15 @@ Copie `.env.example` para `.env.local` e preencha:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-DATABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
+
+# Criadas automaticamente pelo Vercel Marketplace:
+POSTGRES_URL_NON_POOLING=
+POSTGRES_PRISMA_URL=
+POSTGRES_URL=
+
+# Alternativa opcional se voce quiser padronizar em uma URL:
+DATABASE_URL=
 ```
 
 No fluxo recomendado, crie o Supabase pelo Vercel Marketplace e depois rode:
@@ -35,9 +42,10 @@ A migration SQL principal fica em:
 supabase/migrations/20260706170000_init_calculo_uerj.sql
 ```
 
-Depois de aplicar a migration no Supabase, rode:
+Para aplicar a migration no Supabase e popular o conteudo inicial, rode:
 
 ```bash
+npm run db:migrate
 npm run db:seed
 ```
 

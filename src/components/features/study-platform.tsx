@@ -568,8 +568,9 @@ function SetupRequiredScreen() {
             <AlertTitle>Variaveis obrigatorias</AlertTitle>
             <AlertDescription>
               `NEXT_PUBLIC_SUPABASE_URL`,
-              `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL` e
-              `SUPABASE_SERVICE_ROLE_KEY`.
+              `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+              `SUPABASE_SERVICE_ROLE_KEY` e `DATABASE_URL` ou
+              `POSTGRES_URL_NON_POOLING`.
             </AlertDescription>
           </Alert>
           <p className="text-sm leading-6 text-muted-foreground">

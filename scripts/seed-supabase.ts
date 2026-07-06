@@ -182,9 +182,16 @@ async function upsertInitialUser() {
   }
 }
 
-await upsertAcademicContent();
-await upsertInitialUser();
+async function main() {
+  await upsertAcademicContent();
+  await upsertInitialUser();
 
-console.log("Seed concluido.");
-console.log(`Usuario: ${initialEmail}`);
-console.log(`Senha temporaria: ${temporaryPassword}`);
+  console.log("Seed concluido.");
+  console.log(`Usuario: ${initialEmail}`);
+  console.log(`Senha temporaria: ${temporaryPassword}`);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
