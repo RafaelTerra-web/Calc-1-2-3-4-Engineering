@@ -6,12 +6,13 @@ import {
   BookOpen,
   Brain,
   CalendarDays,
+  Calculator,
   CheckCircle2,
   CircleAlert,
   ClipboardList,
   Database,
   ExternalLink,
-  FileInput,
+  Film,
   GraduationCap,
   Home,
   LineChart,
@@ -19,12 +20,19 @@ import {
   Loader2,
   LogOut,
   Menu,
+  Moon,
+  Palette,
   Play,
   RotateCcw,
+  Route,
   SearchCheck,
   Settings,
+  ShieldCheck,
+  Sparkles,
+  Sun,
   Target,
   Timer,
+  Trophy,
   Upload,
   Video,
   XCircle,
@@ -187,8 +195,11 @@ type ExamSession = {
   timeLimitSeconds: number;
 };
 
+type ThemeMode = "light" | "dark";
+
 const INITIAL_EMAIL = "rafaelmodiecai@gmail.com";
 const REMEMBERED_PROFILE_KEY = "calculo-uerj:remembered-profile";
+const THEME_STORAGE_KEY = "calculo-uerj:theme";
 const LEGACY_STORAGE_KEYS = [
   "calculo-uerj:user",
   "calculo-uerj:attempts",
@@ -196,14 +207,14 @@ const LEGACY_STORAGE_KEYS = [
 ];
 
 const navItems: Array<{ id: ViewId; label: string; icon: typeof Home }> = [
-  { id: "dashboard", label: "Hoje", icon: Home },
-  { id: "trilhas", label: "Trilhas", icon: BookOpen },
+  { id: "dashboard", label: "Hoje", icon: Sparkles },
+  { id: "trilhas", label: "Trilhas", icon: Route },
   { id: "pre-requisitos", label: "Pré-requisitos", icon: Brain },
-  { id: "pratica", label: "Prática", icon: ListChecks },
-  { id: "provas", label: "Provas", icon: GraduationCap },
-  { id: "playlists", label: "Playlists", icon: Video },
-  { id: "importacao", label: "Importação", icon: FileInput },
-  { id: "admin", label: "Admin", icon: Settings },
+  { id: "pratica", label: "Prática", icon: Calculator },
+  { id: "provas", label: "Provas", icon: Trophy },
+  { id: "playlists", label: "Playlists", icon: Film },
+  { id: "importacao", label: "Importação", icon: Database },
+  { id: "admin", label: "Admin", icon: ShieldCheck },
 ];
 
 const importExample = `courseId,topicId,prerequisiteIds,prompt,optionA,optionB,optionC,optionD,correctOptionId,explanation,difficulty,errorType,tags
@@ -242,7 +253,20 @@ export function StudyPlatform({
   const [questionStartedAt, setQuestionStartedAt] = useState(() => Date.now());
   const [loadingData, setLoadingData] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [theme, setTheme] = useState<ThemeMode>("light");
   const referenceDate = DEFAULT_REFERENCE_DATE;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+      const nextTheme: ThemeMode = storedTheme === "dark" ? "dark" : "light";
+
+      applyTheme(nextTheme);
+      setTheme(nextTheme);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -382,6 +406,14 @@ export function StudyPlatform({
 
     return filteredQuestions[0] ?? null;
   }, [activeQuestionId, filteredQuestions]);
+
+  function toggleTheme() {
+    const nextTheme: ThemeMode = theme === "dark" ? "light" : "dark";
+
+    applyTheme(nextTheme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    setTheme(nextTheme);
+  }
 
   function startPractice(courseId: CourseId, topicId: string) {
     setSelectedCourseId(courseId);
@@ -803,6 +835,8 @@ export function StudyPlatform({
     return (
       <SignInScreen
         supabaseConfigured={supabaseConfigured}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         onSignIn={async ({ email, password, remember }) => {
           const { data, error } = await supabase.auth.signInWithPassword({
             email,
@@ -860,9 +894,11 @@ export function StudyPlatform({
             assessmentNotifications={assessmentNotifications}
             diagnostics={diagnostics}
             examStats={examStats}
+            theme={theme}
             user={user}
             onLogout={signOut}
             onNavigate={setActiveView}
+            onToggleTheme={toggleTheme}
           />
         </aside>
 
@@ -872,9 +908,11 @@ export function StudyPlatform({
             assessmentNotifications={assessmentNotifications}
             diagnostics={diagnostics}
             examStats={examStats}
+            theme={theme}
             user={user}
             onLogout={signOut}
             onNavigate={setActiveView}
+            onToggleTheme={toggleTheme}
           />
 
           <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -1034,6 +1072,8 @@ function SetupRequiredScreen() {
 function SignInScreen({
   onSignIn,
   supabaseConfigured,
+  theme,
+  onToggleTheme,
 }: {
   onSignIn: (input: {
     email: string;
@@ -1041,6 +1081,8 @@ function SignInScreen({
     remember: boolean;
   }) => Promise<{ ok: true } | { ok: false; message: string }>;
   supabaseConfigured: boolean;
+  theme: ThemeMode;
+  onToggleTheme: () => void;
 }) {
   const [email, setEmail] = useState(INITIAL_EMAIL);
   const [password, setPassword] = useState("");
@@ -1082,7 +1124,10 @@ function SignInScreen({
     <main className="grid min-h-screen bg-background lg:grid-cols-[1.1fr_0.9fr]">
       <section className="relative flex flex-col justify-between gap-10 overflow-hidden px-6 py-8 sm:px-10 lg:px-14">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-        <BrandLogo />
+        <div className="flex items-center justify-between gap-4">
+          <BrandLogo />
+          <ThemeToggleButton theme={theme} onToggleTheme={onToggleTheme} />
+        </div>
 
         <div className="max-w-2xl space-y-8">
           <div className="space-y-4">
@@ -1103,19 +1148,19 @@ function SignInScreen({
             <VisualTile
               icon={Target}
               label="Diagnóstico"
-              tone="text-rose-300"
+              tone="text-rose-600 dark:text-rose-300"
               value="para você"
             />
             <VisualTile
               icon={Brain}
               label="Base"
-              tone="text-emerald-300"
+              tone="text-emerald-600 dark:text-emerald-300"
               value="pré-requisitos"
             />
             <VisualTile
               icon={LineChart}
               label="Persistência"
-              tone="text-sky-300"
+              tone="text-sky-600 dark:text-sky-300"
               value="Supabase"
             />
           </div>
@@ -1195,6 +1240,33 @@ function SignInScreen({
   );
 }
 
+function ThemeToggleButton({
+  compact = false,
+  onToggleTheme,
+  theme,
+}: {
+  compact?: boolean;
+  onToggleTheme: () => void;
+  theme: ThemeMode;
+}) {
+  const isDark = theme === "dark";
+  const Icon = isDark ? Sun : Moon;
+
+  return (
+    <Button
+      aria-label={isDark ? "Ativar tema claro" : "Ativar tema escuro"}
+      className={cn("shrink-0", compact && "h-9 w-9 p-0")}
+      onClick={onToggleTheme}
+      size={compact ? "icon" : "sm"}
+      type="button"
+      variant="outline"
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {!compact && <span>{isDark ? "Tema claro" : "Tema escuro"}</span>}
+    </Button>
+  );
+}
+
 function Sidebar({
   activeView,
   assessmentNotifications,
@@ -1202,6 +1274,8 @@ function Sidebar({
   examStats,
   onLogout,
   onNavigate,
+  onToggleTheme,
+  theme,
   user,
 }: {
   activeView: ViewId;
@@ -1210,6 +1284,8 @@ function Sidebar({
   examStats: OfficialExamStats;
   onLogout: () => void;
   onNavigate: (view: ViewId) => void;
+  onToggleTheme: () => void;
+  theme: ThemeMode;
   user: StudyUser;
 }) {
   return (
@@ -1230,6 +1306,23 @@ function Sidebar({
           </Button>
         ))}
       </nav>
+
+      <div className="rounded-md border border-border bg-background/55 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+              <Palette className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Interface</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {theme === "dark" ? "Modo escuro ativo" : "Modo claro ativo"}
+              </p>
+            </div>
+          </div>
+          <ThemeToggleButton compact theme={theme} onToggleTheme={onToggleTheme} />
+        </div>
+      </div>
 
       <Card className="rounded-md">
         <CardHeader className="pb-3">
@@ -1258,7 +1351,7 @@ function Sidebar({
         <Card className="rounded-md border-amber-500/30 bg-amber-500/5">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Bell className="h-4 w-4 text-amber-300" aria-hidden="true" />
+              <Bell className="h-4 w-4 text-amber-600 dark:text-amber-300" aria-hidden="true" />
               Próximo prazo
             </CardTitle>
             <CardDescription>
@@ -1291,6 +1384,8 @@ function TopBar({
   examStats,
   onLogout,
   onNavigate,
+  onToggleTheme,
+  theme,
   user,
 }: {
   activeView: ViewId;
@@ -1299,6 +1394,8 @@ function TopBar({
   examStats: OfficialExamStats;
   onLogout: () => void;
   onNavigate: (view: ViewId) => void;
+  onToggleTheme: () => void;
+  theme: ThemeMode;
   user: StudyUser;
 }) {
   const title = navItems.find((item) => item.id === activeView)?.label;
@@ -1332,8 +1429,10 @@ function TopBar({
                 assessmentNotifications={assessmentNotifications}
                 diagnostics={diagnostics}
                 examStats={examStats}
+                theme={theme}
                 onLogout={onLogout}
                 onNavigate={onNavigate}
+                onToggleTheme={onToggleTheme}
                 user={user}
               />
             </SheetContent>
@@ -1344,6 +1443,7 @@ function TopBar({
           </div>
         </div>
         <div className="hidden items-center gap-2 sm:flex">
+          <ThemeToggleButton theme={theme} onToggleTheme={onToggleTheme} />
           {assessmentNotifications.length > 0 && (
             <Button
               className="max-w-xs justify-start gap-2 overflow-hidden"
@@ -1351,7 +1451,7 @@ function TopBar({
               size="sm"
               variant="secondary"
             >
-              <Bell className="h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
+              <Bell className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
               <span className="truncate">{assessmentNotifications[0]?.message}</span>
             </Button>
           )}
@@ -1392,6 +1492,10 @@ function DashboardView({
 }) {
   const nextAssessment = examStats.nextAssessment;
   const lastPractice = practiceSummaries[0];
+  const practiceExerciseCount = practiceSummaries.reduce(
+    (total, item) => total + item.total,
+    0,
+  );
 
   return (
     <div className="space-y-6">
@@ -1438,21 +1542,21 @@ function DashboardView({
           detail={`${examStats.submittedAttempts.length} provas oficiais entregues`}
           icon={GraduationCap}
           label="Média oficial"
-          tone="text-emerald-300"
+          tone="text-emerald-600 dark:text-emerald-300"
           value={`${examStats.averageScore}%`}
         />
         <MetricCard
           detail={`${examStats.completedAssessments}/${examStats.totalAssessments} avaliações concluídas`}
           icon={Target}
           label="Melhor nota"
-          tone="text-sky-300"
+          tone="text-sky-600 dark:text-sky-300"
           value={`${examStats.bestScore}%`}
         />
         <MetricCard
           detail="Apenas erros de provas oficiais entram aqui"
           icon={CircleAlert}
           label="Pontos fracos"
-          tone="text-rose-300"
+          tone="text-rose-600 dark:text-rose-300"
           value={String(diagnostics.weakTopics.length)}
         />
         <MetricCard
@@ -1463,10 +1567,20 @@ function DashboardView({
           }
           icon={ListChecks}
           label="Exercícios feitos"
-          tone="text-amber-300"
-          value={String(practiceSummaries.reduce((total, item) => total + item.total, 0))}
+          tone="text-amber-600 dark:text-amber-300"
+          value={String(practiceExerciseCount)}
         />
       </div>
+
+      <DashboardBoostPanel
+        diagnostics={diagnostics}
+        examStats={examStats}
+        nextAssessment={nextAssessment}
+        onNavigate={onNavigate}
+        onStartExam={onStartExam}
+        onStartPractice={onStartPractice}
+        practiceExerciseCount={practiceExerciseCount}
+      />
 
       {attempts.length === 0 && (
         <Alert className="rounded-md">
@@ -1639,6 +1753,194 @@ function DashboardView({
   );
 }
 
+function DashboardBoostPanel({
+  diagnostics,
+  examStats,
+  nextAssessment,
+  onNavigate,
+  onStartExam,
+  onStartPractice,
+  practiceExerciseCount,
+}: {
+  diagnostics: Diagnostics;
+  examStats: OfficialExamStats;
+  nextAssessment: OfficialAssessment | null;
+  onNavigate: (view: ViewId) => void;
+  onStartExam: (assessment: OfficialAssessment) => void;
+  onStartPractice: (courseId: CourseId, topicId: string) => void;
+  practiceExerciseCount: number;
+}) {
+  const weakTopic = diagnostics.weakTopics[0] ?? null;
+  const weakTopicTitle = weakTopic
+    ? getTopic(weakTopic.topicId)?.title ?? "Tópico em revisão"
+    : "Nenhum ponto fraco detectado";
+  const officialCompletion = examStats.totalAssessments
+    ? Math.round((examStats.completedAssessments / examStats.totalAssessments) * 100)
+    : 0;
+  const pendingAssessments = Math.max(
+    0,
+    examStats.totalAssessments - examStats.completedAssessments,
+  );
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <Card className="rounded-md">
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle>Ações rápidas</CardTitle>
+              <CardDescription>
+                Continue pelo caminho mais útil para o seu momento.
+              </CardDescription>
+            </div>
+            <span className="rounded-md bg-primary/10 p-2 text-primary">
+              <Sparkles className="h-5 w-5" aria-hidden="true" />
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Button
+            className="h-auto justify-start py-4 text-left"
+            disabled={!nextAssessment}
+            onClick={() => nextAssessment && onStartExam(nextAssessment)}
+            variant="secondary"
+          >
+            <Trophy className="h-4 w-4" aria-hidden="true" />
+            <span>
+              <span className="block font-medium">Fazer próxima prova</span>
+              <span className="block text-xs text-muted-foreground">
+                {nextAssessment ? nextAssessment.title : "Sem prova pendente"}
+              </span>
+            </span>
+          </Button>
+          <Button
+            className="h-auto justify-start py-4 text-left"
+            disabled={!weakTopic}
+            onClick={() =>
+              weakTopic && onStartPractice(weakTopic.courseId, weakTopic.topicId)
+            }
+            variant="outline"
+          >
+            <Brain className="h-4 w-4" aria-hidden="true" />
+            <span>
+              <span className="block font-medium">Treinar ponto fraco</span>
+              <span className="block text-xs text-muted-foreground">
+                {weakTopicTitle}
+              </span>
+            </span>
+          </Button>
+          <Button
+            className="h-auto justify-start py-4 text-left"
+            onClick={() => onNavigate("pratica")}
+            variant="outline"
+          >
+            <Calculator className="h-4 w-4" aria-hidden="true" />
+            <span>
+              <span className="block font-medium">Prática livre</span>
+              <span className="block text-xs text-muted-foreground">
+                Escolha disciplina, tópico e questão
+              </span>
+            </span>
+          </Button>
+          <Button
+            className="h-auto justify-start py-4 text-left"
+            onClick={() => onNavigate("playlists")}
+            variant="outline"
+          >
+            <Film className="h-4 w-4" aria-hidden="true" />
+            <span>
+              <span className="block font-medium">Abrir playlists</span>
+              <span className="block text-xs text-muted-foreground">
+                Teoria, resolução e pré-requisitos
+              </span>
+            </span>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-md">
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <CardTitle>Roteiro de estudo</CardTitle>
+              <CardDescription>
+                Um mapa simples para equilibrar prazo, treino e revisão.
+              </CardDescription>
+            </div>
+            <Badge className="rounded-md" variant="outline">
+              {officialCompletion}% oficial
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Progress value={officialCompletion} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <LearningStep
+              detail={
+                nextAssessment
+                  ? `Próximo prazo: ${formatAssessmentDueDate(nextAssessment)}`
+                  : "Agenda oficial em dia"
+              }
+              icon={CalendarDays}
+              label="Agenda"
+              value={`${pendingAssessments} pendentes`}
+            />
+            <LearningStep
+              detail="Treinos não alteram sua nota oficial."
+              icon={Calculator}
+              label="Prática"
+              value={`${practiceExerciseCount} exercícios`}
+            />
+            <LearningStep
+              detail="Notas oficiais alimentam o diagnóstico."
+              icon={Trophy}
+              label="Provas"
+              value={`${examStats.submittedAttempts.length} entregues`}
+            />
+            <LearningStep
+              detail={
+                weakTopic
+                  ? `${getCourse(weakTopic.courseId)?.shortTitle ?? "Curso"} / ${weakTopicTitle}`
+                  : "Continue resolvendo para gerar sinais"
+              }
+              icon={Brain}
+              label="Revisão"
+              value={`${diagnostics.weakTopics.length} pontos fracos`}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function LearningStep({
+  detail,
+  icon: Icon,
+  label,
+  value,
+}: {
+  detail: string;
+  icon: typeof Target;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-background/55 p-4">
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-primary">
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="truncate font-semibold">{value}</p>
+        </div>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
 function AssessmentNotificationsPanel({
   assessments,
   notifications,
@@ -1651,7 +1953,7 @@ function AssessmentNotificationsPanel({
   if (notifications.length === 0) {
     return (
       <Alert className="rounded-md border-emerald-500/30">
-        <CheckCircle2 className="h-4 w-4 text-emerald-300" aria-hidden="true" />
+        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />
         <AlertTitle>Sem prazos pendentes</AlertTitle>
         <AlertDescription>
           Você não tem provas oficiais pendentes no momento.
@@ -1666,7 +1968,7 @@ function AssessmentNotificationsPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-amber-300" aria-hidden="true" />
+              <Bell className="h-5 w-5 text-amber-600 dark:text-amber-300" aria-hidden="true" />
               Notificações de prova
             </CardTitle>
             <CardDescription>
@@ -1978,7 +2280,7 @@ function PracticeView({
         </CardContent>
       </Card>
       <Alert className="rounded-md border-emerald-500/30">
-        <CheckCircle2 className="h-4 w-4 text-emerald-300" aria-hidden="true" />
+        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />
         <AlertTitle>Treino sem impacto oficial</AlertTitle>
         <AlertDescription>
           Use esta área para errar, consultar explicações e revisar vídeos. Só a
@@ -2152,9 +2454,9 @@ function QuestionCard({
             )}
           >
             {feedback.correct ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
             ) : (
-              <XCircle className="h-4 w-4 text-rose-300" />
+              <XCircle className="h-4 w-4 text-rose-600 dark:text-rose-300" />
             )}
             <AlertTitle>
               {feedback.correct ? "Resposta correta" : "Resposta incorreta"}
@@ -2392,7 +2694,7 @@ function ExamsView({
 
       {notifications.length > 0 && (
         <Alert className="rounded-md border-amber-500/35">
-          <Bell className="h-4 w-4 text-amber-300" aria-hidden="true" />
+          <Bell className="h-4 w-4 text-amber-600 dark:text-amber-300" aria-hidden="true" />
           <AlertTitle>{notifications[0]?.message}</AlertTitle>
           <AlertDescription>
             O prazo mais próximo fica destacado; os cards abaixo mostram todas as
@@ -2406,14 +2708,14 @@ function ExamsView({
           detail="Baseada apenas em provas entregues"
           icon={LineChart}
           label="Média oficial"
-          tone="text-emerald-300"
+          tone="text-emerald-600 dark:text-emerald-300"
           value={`${examStats.averageScore}%`}
         />
         <MetricCard
           detail={`${examStats.completedAssessments}/${examStats.totalAssessments} avaliações`}
           icon={CheckCircle2}
           label="Conclusão"
-          tone="text-sky-300"
+          tone="text-sky-600 dark:text-sky-300"
           value={`${Math.round(
             (examStats.completedAssessments / Math.max(1, examStats.totalAssessments)) *
               100,
@@ -2423,7 +2725,7 @@ function ExamsView({
           detail="Prazos vencidos ou atrasados"
           icon={CalendarDays}
           label="Pendências"
-          tone="text-amber-300"
+          tone="text-amber-600 dark:text-amber-300"
           value={String(examStats.overdueAssessments.length)}
         />
       </div>
@@ -2672,21 +2974,21 @@ function AdminView({
           detail="Provas temáticas e agendadas"
           icon={GraduationCap}
           label="Avaliações"
-          tone="text-sky-300"
+          tone="text-sky-600 dark:text-sky-300"
           value={String(assessments.length)}
         />
         <MetricCard
           detail="Base por dificuldade"
           icon={Timer}
           label="Tempo"
-          tone="text-amber-300"
+          tone="text-amber-600 dark:text-amber-300"
           value="2/4/7 min"
         />
         <MetricCard
           detail="Padrão inicial"
           icon={Target}
           label="Nota mínima"
-          tone="text-emerald-300"
+          tone="text-emerald-600 dark:text-emerald-300"
           value="70%"
         />
       </div>
@@ -3562,6 +3864,11 @@ function readRememberedProfile(): { email?: string; name?: string } | null {
   } catch {
     return null;
   }
+}
+
+function applyTheme(theme: ThemeMode) {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  document.documentElement.style.colorScheme = theme;
 }
 
 function percent(value: number) {

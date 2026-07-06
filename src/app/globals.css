@@ -128,9 +128,16 @@
   body {
     @apply bg-background text-foreground;
     min-width: 320px;
+    transition:
+      background-color 180ms ease,
+      color 180ms ease;
   }
   html {
     @apply font-sans;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
   }
   ::selection {
     background: color-mix(in oklch, var(--primary) 35%, transparent);
