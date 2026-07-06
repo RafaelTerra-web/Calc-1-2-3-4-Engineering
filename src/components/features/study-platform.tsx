@@ -39,7 +39,7 @@ import {
 } from "@/lib/curriculum";
 import { parseQuestionImport } from "@/lib/importer";
 import { createClient } from "@/lib/supabase/client";
-import { getVideosForQuestion } from "@/lib/videos";
+import { getVideosForQuestion, videoResources } from "@/lib/videos";
 import type {
   Attempt,
   CourseId,
@@ -84,7 +84,13 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 
-type ViewId = "dashboard" | "trilhas" | "pre-requisitos" | "pratica" | "importacao";
+type ViewId =
+  | "dashboard"
+  | "trilhas"
+  | "pre-requisitos"
+  | "pratica"
+  | "playlists"
+  | "importacao";
 
 type Feedback = {
   correct: boolean;
@@ -125,6 +131,7 @@ const navItems: Array<{ id: ViewId; label: string; icon: typeof Home }> = [
   { id: "trilhas", label: "Trilhas", icon: BookOpen },
   { id: "pre-requisitos", label: "Pré-requisitos", icon: Brain },
   { id: "pratica", label: "Prática", icon: ListChecks },
+  { id: "playlists", label: "Playlists", icon: Video },
   { id: "importacao", label: "Importação", icon: FileInput },
 ];
 
@@ -539,6 +546,10 @@ export function StudyPlatform({
                 selectedOptionId={selectedOptionId}
                 selectedTopicId={selectedTopicId}
               />
+            )}
+
+            {activeView === "playlists" && (
+              <PlaylistsView questions={allQuestions} />
             )}
 
             {activeView === "importacao" && (
@@ -1593,6 +1604,182 @@ function formatViews(viewCount: number) {
 function formatPublishedAt(date: string) {
   const [year, month, day] = date.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function PlaylistsView({ questions }: { questions: Question[] }) {
+  const groups: Array<{
+    kind: VideoResource["kind"];
+    title: string;
+    description: string;
+  }> = [
+    {
+      kind: "practice",
+      title: "Prática e resolução",
+      description: "Vídeos de exercícios resolvidos conectados às questões do app.",
+    },
+    {
+      kind: "theory",
+      title: "Teoria e fundamentos",
+      description: "Aulas conceituais para entender o assunto antes de praticar.",
+    },
+    {
+      kind: "prerequisite",
+      title: "Pré-requisitos para entender",
+      description: "Base de álgebra, funções, trigonometria e geometria analítica.",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <ViewHeader
+        description="Biblioteca curada por questão, com vídeos individuais ordenados por relação direta e visualizações."
+        icon={Video}
+        title="Playlists"
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {groups.map((group) => {
+          const videos = getPlaylistVideos(group.kind);
+          const totalViews = videos.reduce(
+            (total, video) => total + (video.viewCount ?? 0),
+            0,
+          );
+
+          return (
+            <div className="rounded-md border border-border bg-card/50 p-4" key={group.kind}>
+              <p className="text-sm font-semibold">{group.title}</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {group.description}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Badge className="rounded-md" variant="secondary">
+                  {videos.length} vídeos
+                </Badge>
+                <Badge className="rounded-md" variant="outline">
+                  {formatViews(totalViews)} views
+                </Badge>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="space-y-6">
+        {groups.map((group) => {
+          const videos = getPlaylistVideos(group.kind);
+
+          return (
+            <section
+              className="space-y-4 rounded-md border border-border bg-card/40 p-4"
+              key={group.kind}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold">{group.title}</h3>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {group.description}
+                  </p>
+                </div>
+                <Badge className="rounded-md" variant="secondary">
+                  {videos.length} vídeos
+                </Badge>
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                {videos.map((video) => (
+                  <PlaylistLibraryItem
+                    key={video.id}
+                    questions={questions}
+                    video={video}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function getPlaylistVideos(kind: VideoResource["kind"]) {
+  return videoResources
+    .filter((video) => video.kind === kind)
+    .sort((left, right) => (right.viewCount ?? 0) - (left.viewCount ?? 0));
+}
+
+function PlaylistLibraryItem({
+  questions,
+  video,
+}: {
+  questions: Question[];
+  video: VideoResource;
+}) {
+  const relatedQuestions = (video.questionIds ?? [])
+    .map((questionId) => questions.find((question) => question.id === questionId))
+    .filter((question): question is Question => Boolean(question));
+
+  return (
+    <article className="rounded-md border border-border bg-background/65 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h4 className="font-semibold leading-6">{video.title}</h4>
+          <p className="mt-1 text-sm text-muted-foreground">{video.channel}</p>
+        </div>
+        <a
+          className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border border-border bg-background px-2.5 text-[0.8rem] font-medium transition hover:bg-muted"
+          href={video.youtubeUrl}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          YouTube
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </a>
+      </div>
+
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+        {video.description}
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+        <span className="rounded-md bg-muted px-2 py-1">
+          Playlist: {video.sourcePlaylistTitle}
+        </span>
+        {video.viewCount && (
+          <span className="rounded-md bg-muted px-2 py-1">
+            {formatViews(video.viewCount)} visualizações
+          </span>
+        )}
+        {video.publishedAt && (
+          <span className="rounded-md bg-muted px-2 py-1">
+            Publicado em {formatPublishedAt(video.publishedAt)}
+          </span>
+        )}
+      </div>
+
+      {relatedQuestions.length > 0 && (
+        <details className="mt-4 rounded-md border border-border bg-muted/20 p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            {relatedQuestions.length}{" "}
+            {relatedQuestions.length === 1
+              ? "questão relacionada"
+              : "questões relacionadas"}
+          </summary>
+          <ul className="mt-3 space-y-2">
+            {relatedQuestions.map((question) => (
+              <li className="text-sm leading-6 text-muted-foreground" key={question.id}>
+                <span className="font-medium text-foreground">
+                  {getCourse(question.courseId)?.shortTitle} /{" "}
+                  {getTopic(question.topicId)?.title}:
+                </span>{" "}
+                {question.prompt}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </article>
+  );
 }
 
 function ImportView({
