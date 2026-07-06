@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Calculo em Foco
 
-## Getting Started
+MVP de estudos para Engenharia UERJ com Supabase Auth, trilhas de Calculo 1-4, pre-requisitos, questoes de multipla escolha, diagnostico por erro e importacao de questoes.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Next.js App Router
+- Supabase Auth + Supabase Postgres
+- Drizzle schema para contrato relacional
+- shadcn/ui + Tailwind CSS
+- Deploy planejado via Vercel conectado ao GitHub
+
+## Ambiente
+
+Copie `.env.example` para `.env.local` e preencha:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+DATABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+No fluxo recomendado, crie o Supabase pelo Vercel Marketplace e depois rode:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx vercel env pull .env.local --yes
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Banco e seed
 
-## Learn More
+A migration SQL principal fica em:
 
-To learn more about Next.js, take a look at the following resources:
+```text
+supabase/migrations/20260706170000_init_calculo_uerj.sql
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Depois de aplicar a migration no Supabase, rode:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run db:seed
+```
 
-## Deploy on Vercel
+O seed:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- upserta cursos, topicos, pre-requisitos e questoes autorais iniciais;
+- cria ou atualiza o usuario `rafaelmodiecai@gmail.com`;
+- imprime uma senha temporaria forte no terminal.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Nao salve a senha temporaria no repositorio. Troque-a depois pelo painel do Supabase ou por fluxo de recuperacao de senha.
+
+## Rodar localmente
+
+```bash
+npm install
+npm run dev
+```
+
+Abra `http://127.0.0.1:3000`.
+
+Se as variaveis Supabase estiverem ausentes, o app mostra uma tela de configuracao em vez de tentar renderizar login mockado.
+
+## Importacao de questoes
+
+A tela `Importacao` aceita JSON ou CSV. CSV minimo:
+
+```csv
+courseId,topicId,prerequisiteIds,prompt,optionA,optionB,optionC,optionD,correctOptionId,explanation,difficulty,errorType,tags
+calculo-1,limites,pre-fatoracao|pre-produtos-notaveis,"Calcule lim_{x -> 1} (x^2 - 1)/(x - 1).",0,1,2,"Nao existe",c,"Fatore x^2 - 1 = (x - 1)(x + 1) e substitua x = 1.",basico,"Fatoracao em limite","limites|fatoracao"
+```
+
+Questoes importadas ficam vinculadas ao usuario autenticado em `imported_questions`.
+
+## Verificacao
+
+```bash
+npm run lint
+npm run build
+```
+
+## Deploy
+
+Fluxo recomendado:
+
+1. Conectar este repositorio ao Vercel.
+2. Provisionar Supabase pelo Vercel Marketplace.
+3. Garantir que os envs acima existam em Production, Preview e Development.
+4. Abrir PR a partir da branch de feature.
+5. Validar o preview da Vercel antes do merge.
