@@ -61,6 +61,11 @@ export type VideoResource = {
   description: string;
   youtubeUrl: string;
   embedUrl: string;
+  sourcePlaylistTitle: string;
+  sourcePlaylistUrl?: string;
+  viewCount?: number;
+  publishedAt?: string;
+  questionIds?: string[];
   topicIds?: string[];
   prerequisiteIds?: string[];
 };

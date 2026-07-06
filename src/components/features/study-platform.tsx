@@ -1458,8 +1458,8 @@ function QuestionVideosPanel({ videos }: { videos: QuestionVideos }) {
             Vídeos para esta questão
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Curadoria em português para resolver, entender e revisar a base antes
-            de avançar.
+            Vídeos individuais em português, ligados a esta questão e ordenados
+            por relação direta e visualizações.
           </p>
         </div>
         {featured && (
@@ -1550,6 +1550,21 @@ function VideoPlaylist({
               <span className="mt-2 block text-xs leading-5 text-muted-foreground">
                 {video.description}
               </span>
+              <span className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span className="rounded-md bg-muted px-2 py-1">
+                  Playlist: {video.sourcePlaylistTitle}
+                </span>
+                {video.viewCount && (
+                  <span className="rounded-md bg-muted px-2 py-1">
+                    {formatViews(video.viewCount)} visualizações
+                  </span>
+                )}
+                {video.publishedAt && (
+                  <span className="rounded-md bg-muted px-2 py-1">
+                    Publicado em {formatPublishedAt(video.publishedAt)}
+                  </span>
+                )}
+              </span>
             </a>
           ))
         ) : (
@@ -1560,6 +1575,24 @@ function VideoPlaylist({
       </div>
     </div>
   );
+}
+
+function formatViews(viewCount: number) {
+  if (viewCount >= 1_000_000) {
+    const value = viewCount / 1_000_000;
+    return `${value.toFixed(value >= 10 ? 0 : 1).replace(".", ",")} mi`;
+  }
+
+  if (viewCount >= 1_000) {
+    return `${Math.round(viewCount / 1_000)} mil`;
+  }
+
+  return String(viewCount);
+}
+
+function formatPublishedAt(date: string) {
+  const [year, month, day] = date.split("-");
+  return `${day}/${month}/${year}`;
 }
 
 function ImportView({
