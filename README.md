@@ -77,7 +77,7 @@ courseId,topicId,prerequisiteIds,prompt,optionA,optionB,optionC,optionD,correctO
 calculo-1,limites,pre-fatoracao|pre-produtos-notaveis,"Calcule lim_{x -> 1} (x^2 - 1)/(x - 1).",0,1,2,"Não existe",c,"Fatore x^2 - 1 = (x - 1)(x + 1) e substitua x = 1.",basico,"Fatoração em limite","limites|fatoracao"
 ```
 
-Questões importadas ficam vinculadas ao usuário autenticado em `imported_questions`.
+Questões importadas ficam vinculadas à sua conta em `imported_questions`.
 
 ## Verificação
 

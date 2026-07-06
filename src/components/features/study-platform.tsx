@@ -665,7 +665,7 @@ function SignInScreen({
             </h2>
             <p className="max-w-xl text-base leading-7 text-muted-foreground">
               Suas tentativas, questões importadas e recomendações ficam ligadas
-              ao seu usuário no Supabase, com revisão de pré-requisitos quando o
+              à sua conta no Supabase, com revisão de pré-requisitos quando o
               erro nasce na base.
             </p>
           </div>
@@ -675,7 +675,7 @@ function SignInScreen({
               icon={Target}
               label="Diagnóstico"
               tone="text-rose-300"
-              value="por usuário"
+              value="para você"
             />
             <VisualTile
               icon={Brain}
@@ -954,7 +954,7 @@ function DashboardView({
           <ClipboardList className="h-4 w-4" aria-hidden="true" />
           <AlertTitle>Nenhuma tentativa ainda</AlertTitle>
           <AlertDescription>
-            O dashboard começa vazio para usuários novos. Resolva questões para
+            O dashboard começa vazio quando você está começando. Resolva questões para
             gerar diagnóstico real por tópico e pré-requisito.
           </AlertDescription>
         </Alert>
@@ -967,7 +967,7 @@ function DashboardView({
               <div>
                 <CardTitle>Progresso por disciplina</CardTitle>
                 <CardDescription>
-                  Cobertura de tópicos e taxa de acerto no seu usuário.
+                  Cobertura de tópicos e taxa de acerto nos seus estudos.
                 </CardDescription>
               </div>
               <Button onClick={() => onNavigate("trilhas")} size="sm" variant="secondary">
@@ -1817,7 +1817,7 @@ function ImportView({
   return (
     <div className="space-y-6">
       <ViewHeader
-        description="Cole CSV ou JSON para expandir o banco do seu usuário."
+        description="Cole CSV ou JSON para expandir seu banco de questões."
         icon={Upload}
         title="Importação de questões"
       />
@@ -1826,7 +1826,7 @@ function ImportView({
           <CardHeader>
             <CardTitle>Entrada CSV/JSON</CardTitle>
             <CardDescription>
-              As questões importadas ficam vinculadas ao usuário autenticado.
+              As questões importadas ficam vinculadas à sua conta.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -2007,7 +2007,7 @@ function RecentMistakesPanel({
     <Card className="rounded-md">
       <CardHeader>
         <CardTitle>Erros recentes</CardTitle>
-        <CardDescription>Erros reais do usuário autenticado.</CardDescription>
+        <CardDescription>Seus erros reais.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {attempts.length === 0 && (
