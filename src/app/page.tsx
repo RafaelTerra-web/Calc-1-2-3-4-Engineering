@@ -15,16 +15,25 @@ export default async function Home() {
       data: { user },
     } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
 
-    if (user) {
+    if (user && supabase) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name, email, role, created_at")
+        .eq("id", user.id)
+        .maybeSingle();
+      const email = profile?.email ?? user.email ?? "";
+
       initialUser = {
         id: user.id,
         name:
+          profile?.name ??
           user.user_metadata?.name ??
           user.user_metadata?.full_name ??
-          user.email ??
+          email ??
           "Aluno",
-        email: user.email ?? "",
-        createdAt: user.created_at,
+        email,
+        role: profile?.role === "admin" ? "admin" : "student",
+        createdAt: profile?.created_at ?? user.created_at,
       };
     }
   }

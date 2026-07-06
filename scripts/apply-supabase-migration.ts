@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import postgres from "postgres";
 
@@ -14,21 +14,21 @@ if (!databaseUrl) {
   );
 }
 
-const migrationPath = join(
-  process.cwd(),
-  "supabase",
-  "migrations",
-  "20260706170000_init_calculo_uerj.sql",
-);
+const migrationsDir = join(process.cwd(), "supabase", "migrations");
 
 const sql = postgres(databaseUrl, { max: 1, prepare: false });
 
 async function main() {
-  const migration = await readFile(migrationPath, "utf8");
-
   try {
-    await sql.unsafe(migration);
-    console.log("Migration aplicada com sucesso.");
+    const migrationFiles = (await readdir(migrationsDir))
+      .filter((file) => file.endsWith(".sql"))
+      .sort();
+
+    for (const migrationFile of migrationFiles) {
+      const migration = await readFile(join(migrationsDir, migrationFile), "utf8");
+      await sql.unsafe(migration);
+      console.log(`Migration aplicada: ${migrationFile}`);
+    }
   } finally {
     await sql.end();
   }

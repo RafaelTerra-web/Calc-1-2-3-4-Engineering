@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
+import { officialAssessments } from "../src/lib/assessments";
 import {
   courses,
   prerequisites,
@@ -142,6 +143,32 @@ async function upsertAcademicContent() {
   if (questionPrerequisitesError) {
     throw questionPrerequisitesError;
   }
+
+  const { error: assessmentSchedulesError } = await supabase
+    .from("assessment_schedules")
+    .upsert(
+      officialAssessments.map((assessment) => ({
+        id: assessment.id,
+        title: assessment.title,
+        description: assessment.description,
+        course_id: assessment.courseId,
+        topic_id: assessment.topicId,
+        scope: assessment.scope,
+        question_count: assessment.questionCount,
+        difficulty_mix: assessment.difficultyMix,
+        minimum_score: assessment.minimumScore,
+        max_attempts: assessment.maxAttempts,
+        available_at: assessment.availableAt,
+        due_at: assessment.dueAt,
+        deadline_policy: assessment.deadlinePolicy,
+        required: assessment.required,
+        active: true,
+      })),
+    );
+
+  if (assessmentSchedulesError) {
+    throw assessmentSchedulesError;
+  }
 }
 
 async function upsertInitialUser() {
@@ -177,6 +204,7 @@ async function upsertInitialUser() {
     id: userResult.data.user.id,
     email: initialEmail,
     name: "Rafael Terra",
+    role: "admin",
   });
 
   if (profileError) {
@@ -188,12 +216,12 @@ async function main() {
   await upsertAcademicContent();
   await upsertInitialUser();
 
-  console.log("Seed concluido.");
-  console.log(`Usuario: ${initialEmail}`);
+  console.log("Seed concluído.");
+  console.log(`Usuário: ${initialEmail}`);
   console.log(
     requestedInitialPassword
       ? "Senha definida a partir de INITIAL_USER_PASSWORD."
-      : `Senha temporaria: ${initialPassword}`,
+      : `Senha temporária: ${initialPassword}`,
   );
 }
 

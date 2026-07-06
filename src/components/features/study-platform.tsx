@@ -4,12 +4,14 @@ import {
   ArrowRight,
   BookOpen,
   Brain,
+  CalendarDays,
   CheckCircle2,
   CircleAlert,
   ClipboardList,
   Database,
   ExternalLink,
   FileInput,
+  GraduationCap,
   Home,
   LineChart,
   ListChecks,
@@ -21,6 +23,7 @@ import {
   SearchCheck,
   Settings,
   Target,
+  Timer,
   Upload,
   Video,
   XCircle,
@@ -28,6 +31,17 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { buildDiagnostics, getQuestionProgress } from "@/lib/analytics";
+import {
+  buildOfficialExamStats,
+  calculateTimeLimitSeconds,
+  DEFAULT_DIFFICULTY_TIME_MINUTES,
+  DEFAULT_REFERENCE_DATE,
+  describeAssessmentScope,
+  formatAssessmentWindow,
+  getAssessmentStatusLabel,
+  officialAssessments as defaultOfficialAssessments,
+  selectAssessmentQuestions,
+} from "@/lib/assessments";
 import {
   courses,
   getCourse,
@@ -44,6 +58,12 @@ import type {
   Attempt,
   CourseId,
   Diagnostics,
+  ExamAttempt,
+  ExamAttemptStatus,
+  OfficialAssessment,
+  OfficialExamStats,
+  PracticeSessionAnswer,
+  PracticeSessionSummary,
   Question,
   QuestionVideos,
   Recommendation,
@@ -89,8 +109,10 @@ type ViewId =
   | "trilhas"
   | "pre-requisitos"
   | "pratica"
+  | "provas"
   | "playlists"
-  | "importacao";
+  | "importacao"
+  | "admin";
 
 type Feedback = {
   correct: boolean;
@@ -98,7 +120,12 @@ type Feedback = {
   explanation: string;
 };
 
-type AttemptRow = {
+type ImportedQuestionRow = {
+  id: string;
+  question: Question;
+};
+
+type OfficialExamAnswerRow = {
   id: string;
   question_id: string;
   course_id: CourseId;
@@ -110,12 +137,50 @@ type AttemptRow = {
   time_spent_seconds: number;
   difficulty: "basico" | "medio" | "avancado";
   error_type: string;
+  answered_at: string;
+};
+
+type OfficialExamAttemptRow = {
+  id: string;
+  assessment_id: string;
+  course_id: CourseId;
+  topic_id: string;
+  status: ExamAttemptStatus;
+  score: number;
+  correct_count: number;
+  question_count: number;
+  question_ids: string[] | null;
+  time_limit_seconds: number;
+  time_spent_seconds: number;
+  started_at: string;
+  submitted_at: string | null;
   created_at: string;
 };
 
-type ImportedQuestionRow = {
+type AssessmentScheduleRow = {
   id: string;
-  question: Question;
+  title: string;
+  description: string;
+  course_id: CourseId;
+  topic_id: string;
+  scope: OfficialAssessment["scope"];
+  question_count: number;
+  difficulty_mix: OfficialAssessment["difficultyMix"];
+  minimum_score: number;
+  max_attempts: number;
+  available_at: string;
+  due_at: string;
+  deadline_policy: OfficialAssessment["deadlinePolicy"];
+  required: boolean;
+};
+
+type ExamSession = {
+  attemptId: string;
+  assessment: OfficialAssessment;
+  questions: Question[];
+  selectedAnswers: Record<string, string>;
+  startedAt: number;
+  timeLimitSeconds: number;
 };
 
 const INITIAL_EMAIL = "rafaelmodiecai@gmail.com";
@@ -127,12 +192,14 @@ const LEGACY_STORAGE_KEYS = [
 ];
 
 const navItems: Array<{ id: ViewId; label: string; icon: typeof Home }> = [
-  { id: "dashboard", label: "Dashboard", icon: Home },
+  { id: "dashboard", label: "Hoje", icon: Home },
   { id: "trilhas", label: "Trilhas", icon: BookOpen },
   { id: "pre-requisitos", label: "Pré-requisitos", icon: Brain },
   { id: "pratica", label: "Prática", icon: ListChecks },
+  { id: "provas", label: "Provas", icon: GraduationCap },
   { id: "playlists", label: "Playlists", icon: Video },
   { id: "importacao", label: "Importação", icon: FileInput },
+  { id: "admin", label: "Admin", icon: Settings },
 ];
 
 const importExample = `courseId,topicId,prerequisiteIds,prompt,optionA,optionB,optionC,optionD,correctOptionId,explanation,difficulty,errorType,tags
@@ -148,6 +215,19 @@ export function StudyPlatform({
   const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<StudyUser | null>(initialUser);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [examAttempts, setExamAttempts] = useState<ExamAttempt[]>([]);
+  const [assessments, setAssessments] = useState<OfficialAssessment[]>(
+    defaultOfficialAssessments,
+  );
+  const [practiceSessionAnswers, setPracticeSessionAnswers] = useState<
+    PracticeSessionAnswer[]
+  >([]);
+  const [practiceSummaries, setPracticeSummaries] = useState<
+    PracticeSessionSummary[]
+  >([]);
+  const [activeExamSession, setActiveExamSession] = useState<ExamSession | null>(
+    null,
+  );
   const [importedQuestions, setImportedQuestions] = useState<Question[]>([]);
   const [activeView, setActiveView] = useState<ViewId>("dashboard");
   const [selectedCourseId, setSelectedCourseId] = useState<CourseId>("calculo-1");
@@ -158,6 +238,7 @@ export function StudyPlatform({
   const [questionStartedAt, setQuestionStartedAt] = useState(() => Date.now());
   const [loadingData, setLoadingData] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const referenceDate = DEFAULT_REFERENCE_DATE;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -176,13 +257,31 @@ export function StudyPlatform({
 
     async function loadUserData() {
       setLoadingData(true);
-      const [attemptResult, importResult] = await Promise.all([
+      const [
+        officialAnswerResult,
+        officialAttemptResult,
+        assessmentScheduleResult,
+        importResult,
+      ] = await Promise.all([
         supabase
-          .from("attempts")
+          .from("official_exam_answers")
           .select(
-            "id, question_id, course_id, topic_id, prerequisite_ids, selected_option_id, correct_option_id, correct, time_spent_seconds, difficulty, error_type, created_at",
+            "id, question_id, course_id, topic_id, prerequisite_ids, selected_option_id, correct_option_id, correct, time_spent_seconds, difficulty, error_type, answered_at",
+          )
+          .order("answered_at", { ascending: false }),
+        supabase
+          .from("official_exam_attempts")
+          .select(
+            "id, assessment_id, course_id, topic_id, status, score, correct_count, question_count, question_ids, time_limit_seconds, time_spent_seconds, started_at, submitted_at, created_at",
           )
           .order("created_at", { ascending: false }),
+        supabase
+          .from("assessment_schedules")
+          .select(
+            "id, title, description, course_id, topic_id, scope, question_count, difficulty_mix, minimum_score, max_attempts, available_at, due_at, deadline_policy, required",
+          )
+          .eq("active", true)
+          .order("due_at", { ascending: true }),
         supabase
           .from("imported_questions")
           .select("id, question")
@@ -193,12 +292,33 @@ export function StudyPlatform({
         return;
       }
 
-      if (attemptResult.error || importResult.error) {
+      if (
+        officialAnswerResult.error ||
+        officialAttemptResult.error ||
+        assessmentScheduleResult.error ||
+        importResult.error
+      ) {
         setStatusMessage(
-          "Não consegui carregar seus dados do Supabase. Verifique migrations/RLS.",
+          "Não consegui carregar seus dados oficiais do Supabase. Rode migrations/seed e verifique RLS.",
         );
       } else {
-        setAttempts((attemptResult.data ?? []).map(rowToAttempt));
+        setAttempts(
+          ((officialAnswerResult.data ?? []) as OfficialExamAnswerRow[]).map(
+            officialAnswerRowToAttempt,
+          ),
+        );
+        setExamAttempts(
+          ((officialAttemptResult.data ?? []) as OfficialExamAttemptRow[]).map(
+            rowToExamAttempt,
+          ),
+        );
+        setAssessments(
+          ((assessmentScheduleResult.data ?? []) as AssessmentScheduleRow[]).length
+            ? ((assessmentScheduleResult.data ?? []) as AssessmentScheduleRow[]).map(
+                rowToAssessment,
+              )
+            : defaultOfficialAssessments,
+        );
         setImportedQuestions(
           ((importResult.data ?? []) as ImportedQuestionRow[]).map(
             (row) => row.question,
@@ -225,6 +345,11 @@ export function StudyPlatform({
   const diagnostics = useMemo(
     () => buildDiagnostics(allQuestions, attempts),
     [allQuestions, attempts],
+  );
+
+  const examStats = useMemo(
+    () => buildOfficialExamStats(assessments, examAttempts, referenceDate),
+    [assessments, examAttempts, referenceDate],
   );
 
   const filteredQuestions = useMemo(
@@ -270,6 +395,10 @@ export function StudyPlatform({
 
     setUser(null);
     setAttempts([]);
+    setExamAttempts([]);
+    setPracticeSessionAnswers([]);
+    setPracticeSummaries([]);
+    setActiveExamSession(null);
     setImportedQuestions([]);
     setActiveView("dashboard");
     setStatusMessage(null);
@@ -309,43 +438,245 @@ export function StudyPlatform({
       createdAt: new Date().toISOString(),
     };
 
-    if (!supabase) {
-      setStatusMessage("Supabase não está configurado. A tentativa não foi salva.");
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("attempts")
-      .insert({
-        user_id: user.id,
-        question_id: attempt.questionId,
-        course_id: attempt.courseId,
-        topic_id: attempt.topicId,
-        prerequisite_ids: attempt.prerequisiteIds,
-        selected_option_id: attempt.selectedOptionId,
-        correct_option_id: attempt.correctOptionId,
+    setPracticeSessionAnswers((current) => [
+      ...current.filter((answer) => answer.questionId !== activeQuestion.id),
+      {
+        questionId: activeQuestion.id,
+        courseId: activeQuestion.courseId,
+        topicId: activeQuestion.topicId,
+        selectedOptionId,
+        correctOptionId: activeQuestion.correctOptionId,
         correct: attempt.correct,
-        time_spent_seconds: attempt.timeSpentSeconds,
-        difficulty: attempt.difficulty,
-        error_type: attempt.errorType,
-      })
-      .select(
-        "id, question_id, course_id, topic_id, prerequisite_ids, selected_option_id, correct_option_id, correct, time_spent_seconds, difficulty, error_type, created_at",
-      )
-      .single();
-
-    if (error) {
-      setStatusMessage(`Não consegui salvar a tentativa: ${error.message}`);
-      return;
-    }
-
-    setAttempts((current) => [rowToAttempt(data as AttemptRow), ...current]);
+        errorType: activeQuestion.errorType,
+      },
+    ]);
     setFeedback({
       correct: attempt.correct,
       correctOptionText: correctOption.text,
       explanation: activeQuestion.explanation,
     });
+    setStatusMessage(
+      "Treino registrado apenas nesta sessão. Ele não entra no dashboard oficial.",
+    );
+  }
+
+  function finishPracticeSession() {
+    const topicAnswers = practiceSessionAnswers.filter(
+      (answer) =>
+        answer.courseId === selectedCourseId && answer.topicId === selectedTopicId,
+    );
+
+    if (topicAnswers.length === 0) {
+      setStatusMessage("Responda pelo menos uma questão antes de finalizar o treino.");
+      return;
+    }
+
+    const summary: PracticeSessionSummary = {
+      id: createId("practice"),
+      courseId: selectedCourseId,
+      topicId: selectedTopicId,
+      total: topicAnswers.length,
+      correct: topicAnswers.filter((answer) => answer.correct).length,
+      completedAt: new Date().toISOString(),
+    };
+
+    setPracticeSummaries((current) => [summary, ...current].slice(0, 12));
+    setPracticeSessionAnswers((current) =>
+      current.filter(
+        (answer) =>
+          answer.courseId !== selectedCourseId || answer.topicId !== selectedTopicId,
+      ),
+    );
+    resetQuestionState();
+    setStatusMessage(
+      "Treino finalizado. Use as correções e vídeos para revisar; sua nota oficial não mudou.",
+    );
+  }
+
+  async function startExam(assessment: OfficialAssessment) {
+    if (!user || !supabase) {
+      setStatusMessage("Faça login com Supabase antes de iniciar uma prova.");
+      return;
+    }
+
+    const previousQuestionIds = new Set(
+      examAttempts
+        .filter((attempt) => attempt.assessmentId === assessment.id)
+        .flatMap((attempt) => attempt.questionIds),
+    );
+    const examQuestions = selectAssessmentQuestions(
+      assessment,
+      allQuestions,
+      previousQuestionIds,
+    );
+
+    if (examQuestions.length === 0) {
+      setStatusMessage(
+        "Ainda não há questões suficientes para esta prova. Importe ou cadastre questões.",
+      );
+      return;
+    }
+
+    const timeLimitSeconds = calculateTimeLimitSeconds(examQuestions);
+    const { data, error } = await supabase
+      .from("official_exam_attempts")
+      .insert({
+        user_id: user.id,
+        assessment_id: assessment.id,
+        course_id: assessment.courseId,
+        topic_id: assessment.topicId,
+        status: "in_progress",
+        question_count: examQuestions.length,
+        question_ids: examQuestions.map((question) => question.id),
+        time_limit_seconds: timeLimitSeconds,
+      })
+      .select(
+        "id, assessment_id, course_id, topic_id, status, score, correct_count, question_count, question_ids, time_limit_seconds, time_spent_seconds, started_at, submitted_at, created_at",
+      )
+      .single();
+
+    if (error || !data) {
+      setStatusMessage(`Não consegui iniciar a prova: ${error?.message ?? "erro desconhecido"}`);
+      return;
+    }
+
+    const attempt = rowToExamAttempt(data as OfficialExamAttemptRow);
+    setExamAttempts((current) => [attempt, ...current]);
+    setActiveExamSession({
+      attemptId: attempt.id,
+      assessment,
+      questions: examQuestions,
+      selectedAnswers: {},
+      startedAt: Date.now(),
+      timeLimitSeconds,
+    });
+    setActiveView("provas");
     setStatusMessage(null);
+  }
+
+  function selectExamAnswer(questionId: string, optionId: string) {
+    setActiveExamSession((current) =>
+      current
+        ? {
+            ...current,
+            selectedAnswers: {
+              ...current.selectedAnswers,
+              [questionId]: optionId,
+            },
+          }
+        : current,
+    );
+  }
+
+  async function submitExam(forceStatus?: ExamAttemptStatus) {
+    if (!activeExamSession || !user || !supabase) {
+      return;
+    }
+
+    const unanswered = activeExamSession.questions.filter(
+      (question) => !activeExamSession.selectedAnswers[question.id],
+    );
+
+    if (unanswered.length > 0 && !forceStatus) {
+      setStatusMessage("Responda todas as questões antes de entregar a prova.");
+      return;
+    }
+
+    const now = new Date();
+    const timeSpentSeconds = Math.max(
+      1,
+      Math.round((Date.now() - activeExamSession.startedAt) / 1000),
+    );
+    const perQuestionTime = Math.max(
+      1,
+      Math.round(timeSpentSeconds / activeExamSession.questions.length),
+    );
+    const correctCount = activeExamSession.questions.filter(
+      (question) =>
+        activeExamSession.selectedAnswers[question.id] === question.correctOptionId,
+    ).length;
+    const score = Math.round(
+      (correctCount / activeExamSession.questions.length) * 100,
+    );
+    const late = now.getTime() > new Date(activeExamSession.assessment.dueAt).getTime();
+    const status: ExamAttemptStatus =
+      forceStatus ?? (late ? "late" : "submitted");
+
+    const { error: updateError } = await supabase
+      .from("official_exam_attempts")
+      .update({
+        status,
+        score,
+        correct_count: correctCount,
+        question_count: activeExamSession.questions.length,
+        time_spent_seconds: timeSpentSeconds,
+        submitted_at: now.toISOString(),
+      })
+      .eq("id", activeExamSession.attemptId)
+      .eq("user_id", user.id);
+
+    if (updateError) {
+      setStatusMessage(`Não consegui salvar o resultado: ${updateError.message}`);
+      return;
+    }
+
+    const answerRows = activeExamSession.questions.map((question) => {
+      const selectedOptionId =
+        activeExamSession.selectedAnswers[question.id] ?? "__sem_resposta__";
+
+      return {
+        attempt_id: activeExamSession.attemptId,
+        user_id: user.id,
+        question_id: question.id,
+        course_id: question.courseId,
+        topic_id: question.topicId,
+        prerequisite_ids: question.prerequisiteIds,
+        selected_option_id: selectedOptionId,
+        correct_option_id: question.correctOptionId,
+        correct: selectedOptionId === question.correctOptionId,
+        time_spent_seconds: perQuestionTime,
+        difficulty: question.difficulty,
+        error_type: question.errorType,
+      };
+    });
+
+    const { data: insertedAnswers, error: answerError } = await supabase
+      .from("official_exam_answers")
+      .insert(answerRows)
+      .select(
+        "id, question_id, course_id, topic_id, prerequisite_ids, selected_option_id, correct_option_id, correct, time_spent_seconds, difficulty, error_type, answered_at",
+      );
+
+    if (answerError) {
+      setStatusMessage(`Resultado salvo, mas respostas não foram detalhadas: ${answerError.message}`);
+      return;
+    }
+
+    setExamAttempts((current) =>
+      current.map((attempt) =>
+        attempt.id === activeExamSession.attemptId
+          ? {
+              ...attempt,
+              status,
+              score,
+              correctCount,
+              questionCount: activeExamSession.questions.length,
+              timeSpentSeconds,
+              submittedAt: now.toISOString(),
+            }
+          : attempt,
+      ),
+    );
+    setAttempts((current) => [
+      ...((insertedAnswers ?? []) as OfficialExamAnswerRow[]).map(
+        officialAnswerRowToAttempt,
+      ),
+      ...current,
+    ]);
+    setActiveExamSession(null);
+    setStatusMessage(
+      `Prova entregue: ${score}% (${correctCount}/${activeExamSession.questions.length}).`,
+    );
   }
 
   function moveToNextQuestion() {
@@ -409,7 +740,50 @@ export function StudyPlatform({
     }
 
     setImportedQuestions([]);
-    setStatusMessage("Questoes importadas removidas.");
+    setStatusMessage("Questões importadas removidas.");
+  }
+
+  async function saveAssessmentSchedule(assessment: OfficialAssessment) {
+    if (!user || !supabase) {
+      setStatusMessage("Faça login antes de alterar configurações.");
+      return false;
+    }
+
+    if (user.role !== "admin") {
+      setStatusMessage("Apenas admin pode alterar agenda e regras de prova.");
+      return false;
+    }
+
+    const { error } = await supabase.from("assessment_schedules").upsert({
+      id: assessment.id,
+      title: assessment.title,
+      description: assessment.description,
+      course_id: assessment.courseId,
+      topic_id: assessment.topicId,
+      scope: assessment.scope,
+      question_count: assessment.questionCount,
+      difficulty_mix: assessment.difficultyMix,
+      minimum_score: assessment.minimumScore,
+      max_attempts: assessment.maxAttempts,
+      available_at: assessment.availableAt,
+      due_at: assessment.dueAt,
+      deadline_policy: assessment.deadlinePolicy,
+      required: assessment.required,
+      active: true,
+      time_settings: DEFAULT_DIFFICULTY_TIME_MINUTES,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      setStatusMessage(`Não consegui salvar a configuração: ${error.message}`);
+      return false;
+    }
+
+    setAssessments((current) =>
+      current.map((item) => (item.id === assessment.id ? assessment : item)),
+    );
+    setStatusMessage("Configuração de prova atualizada.");
+    return true;
   }
 
   if (!supabaseConfigured || !supabase) {
@@ -436,15 +810,29 @@ export function StudyPlatform({
           }
 
           const nextUser = authUserToStudyUser(data.user);
+          const fallbackRole = nextUser.email === INITIAL_EMAIL ? "admin" : "student";
 
-          await supabase.from("profiles").upsert({
-            id: nextUser.id,
-            email: nextUser.email,
-            name: nextUser.name,
-          });
+          const { data: profile } = await supabase
+            .from("profiles")
+            .upsert({
+              id: nextUser.id,
+              email: nextUser.email,
+              name: nextUser.name,
+              role: fallbackRole,
+            })
+            .select("name, email, role, created_at")
+            .single();
 
-          rememberProfile(remember ? nextUser : null);
-          setUser(nextUser);
+          const userWithProfile: StudyUser = {
+            ...nextUser,
+            name: profile?.name ?? nextUser.name,
+            email: profile?.email ?? nextUser.email,
+            role: profile?.role === "admin" ? "admin" : "student",
+            createdAt: profile?.created_at ?? nextUser.createdAt,
+          };
+
+          rememberProfile(remember ? userWithProfile : null);
+          setUser(userWithProfile);
           setActiveView("dashboard");
           setStatusMessage(null);
 
@@ -461,6 +849,7 @@ export function StudyPlatform({
           <Sidebar
             activeView={activeView}
             diagnostics={diagnostics}
+            examStats={examStats}
             user={user}
             onLogout={signOut}
             onNavigate={setActiveView}
@@ -471,6 +860,7 @@ export function StudyPlatform({
           <TopBar
             activeView={activeView}
             diagnostics={diagnostics}
+            examStats={examStats}
             user={user}
             onLogout={signOut}
             onNavigate={setActiveView}
@@ -494,10 +884,14 @@ export function StudyPlatform({
             {activeView === "dashboard" && (
               <DashboardView
                 attempts={attempts}
+                assessments={assessments}
                 diagnostics={diagnostics}
+                examStats={examStats}
                 onNavigate={setActiveView}
+                onStartExam={startExam}
                 onStartPractice={startPractice}
-                questions={allQuestions}
+                practiceSummaries={practiceSummaries}
+                referenceDate={referenceDate}
               />
             )}
 
@@ -520,10 +914,10 @@ export function StudyPlatform({
             {activeView === "pratica" && (
               <PracticeView
                 activeQuestion={activeQuestion}
-                diagnostics={diagnostics}
                 feedback={feedback}
                 filteredQuestions={filteredQuestions}
                 onAnswerQuestion={answerQuestion}
+                onFinishPractice={finishPracticeSession}
                 onMoveToNextQuestion={moveToNextQuestion}
                 onSelectCourse={(courseId) => {
                   const firstTopic = getTopicsByCourse(courseId)[0]?.id ?? "";
@@ -545,6 +939,20 @@ export function StudyPlatform({
                 selectedCourseId={selectedCourseId}
                 selectedOptionId={selectedOptionId}
                 selectedTopicId={selectedTopicId}
+                sessionAnswers={practiceSessionAnswers}
+              />
+            )}
+
+            {activeView === "provas" && (
+              <ExamsView
+                activeSession={activeExamSession}
+                assessments={assessments}
+                attempts={examAttempts}
+                onCancelSession={() => setActiveExamSession(null)}
+                onSelectAnswer={selectExamAnswer}
+                onStartExam={startExam}
+                onSubmitExam={submitExam}
+                referenceDate={referenceDate}
               />
             )}
 
@@ -557,6 +965,14 @@ export function StudyPlatform({
                 importedQuestions={importedQuestions}
                 onImport={importQuestions}
                 onResetImported={resetImportedQuestions}
+              />
+            )}
+
+            {activeView === "admin" && (
+              <AdminView
+                assessments={assessments}
+                onSaveAssessment={saveAssessmentSchedule}
+                user={user}
               />
             )}
           </div>
@@ -583,7 +999,7 @@ function SetupRequiredScreen() {
         <CardContent className="space-y-4">
           <Alert className="rounded-md">
             <Database className="h-4 w-4" aria-hidden="true" />
-            <AlertTitle>Variaveis obrigatorias</AlertTitle>
+            <AlertTitle>Variáveis obrigatórias</AlertTitle>
             <AlertDescription>
               `NEXT_PUBLIC_SUPABASE_URL`,
               `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
@@ -593,8 +1009,8 @@ function SetupRequiredScreen() {
           </Alert>
           <p className="text-sm leading-6 text-muted-foreground">
             Depois de provisionar, rode `npx vercel env pull .env.local --yes`
-            ou preencha `.env.local` manualmente. A tela de login aparecera sem
-            precisar alterar codigo.
+            ou preencha `.env.local` manualmente. A tela de login aparecerá sem
+            precisar alterar código.
           </p>
         </CardContent>
       </Card>
@@ -769,12 +1185,14 @@ function SignInScreen({
 function Sidebar({
   activeView,
   diagnostics,
+  examStats,
   onLogout,
   onNavigate,
   user,
 }: {
   activeView: ViewId;
   diagnostics: Diagnostics;
+  examStats: OfficialExamStats;
   onLogout: () => void;
   onNavigate: (view: ViewId) => void;
   user: StudyUser;
@@ -800,20 +1218,20 @@ function Sidebar({
 
       <Card className="rounded-md">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Saúde do estudo</CardTitle>
+          <CardTitle className="text-base">Desempenho oficial</CardTitle>
           <CardDescription>
-            {diagnostics.totalAttempts} tentativas registradas
+            {examStats.submittedAttempts.length} provas entregues
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Progress value={diagnostics.accuracy * 100} />
+          <Progress value={examStats.averageScore} />
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Acerto geral</span>
-            <span className="font-medium">{percent(diagnostics.accuracy)}</span>
+            <span className="text-muted-foreground">Média oficial</span>
+            <span className="font-medium">{examStats.averageScore}%</span>
           </div>
           <Separator />
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Tópicos fracos</span>
+            <span className="text-muted-foreground">Pontos fracos</span>
             <Badge variant={diagnostics.weakTopics.length ? "destructive" : "secondary"}>
               {diagnostics.weakTopics.length}
             </Badge>
@@ -840,12 +1258,14 @@ function Sidebar({
 function TopBar({
   activeView,
   diagnostics,
+  examStats,
   onLogout,
   onNavigate,
   user,
 }: {
   activeView: ViewId;
   diagnostics: Diagnostics;
+  examStats: OfficialExamStats;
   onLogout: () => void;
   onNavigate: (view: ViewId) => void;
   user: StudyUser;
@@ -879,6 +1299,7 @@ function TopBar({
               <Sidebar
                 activeView={activeView}
                 diagnostics={diagnostics}
+                examStats={examStats}
                 onLogout={onLogout}
                 onNavigate={onNavigate}
                 user={user}
@@ -892,10 +1313,10 @@ function TopBar({
         </div>
         <div className="hidden items-center gap-2 sm:flex">
           <Badge className="rounded-md" variant="secondary">
-            {diagnostics.totalAttempts} tentativas
+            {examStats.submittedAttempts.length} provas
           </Badge>
           <Badge className="rounded-md" variant="outline">
-            {percent(diagnostics.accuracy)} geral
+            {examStats.averageScore}% média
           </Badge>
         </div>
       </div>
@@ -905,57 +1326,104 @@ function TopBar({
 
 function DashboardView({
   attempts,
+  assessments,
   diagnostics,
+  examStats,
   onNavigate,
+  onStartExam,
   onStartPractice,
-  questions,
+  practiceSummaries,
+  referenceDate,
 }: {
   attempts: Attempt[];
+  assessments: OfficialAssessment[];
   diagnostics: Diagnostics;
+  examStats: OfficialExamStats;
   onNavigate: (view: ViewId) => void;
+  onStartExam: (assessment: OfficialAssessment) => void;
   onStartPractice: (courseId: CourseId, topicId: string) => void;
-  questions: Question[];
+  practiceSummaries: PracticeSessionSummary[];
+  referenceDate: string;
 }) {
+  const nextAssessment = examStats.nextAssessment;
+  const lastPractice = practiceSummaries[0];
+
   return (
     <div className="space-y-6">
+      <ViewHeader
+        description="Seu painel separa estudo livre de desempenho oficial. Treinos ajudam a revisar; provas oficiais alimentam notas e diagnóstico."
+        icon={Home}
+        title="Hoje"
+      />
+
+      {nextAssessment && (
+        <Card className="rounded-md border-primary/35 bg-primary/5">
+          <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="rounded-md bg-primary p-3 text-primary-foreground">
+                <CalendarDays className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Próxima avaliação oficial
+                </p>
+                <h2 className="mt-1 text-xl font-semibold">{nextAssessment.title}</h2>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {describeAssessmentScope(nextAssessment)} ·{" "}
+                  {formatAssessmentWindow(nextAssessment)}
+                </p>
+              </div>
+            </div>
+            <Button onClick={() => onStartExam(nextAssessment)}>
+              Iniciar prova
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          detail={`${diagnostics.totalCorrect}/${diagnostics.totalAttempts} respostas corretas`}
-          icon={Target}
-          label="Acerto geral"
+          detail={`${examStats.submittedAttempts.length} provas oficiais entregues`}
+          icon={GraduationCap}
+          label="Média oficial"
           tone="text-emerald-300"
-          value={percent(diagnostics.accuracy)}
+          value={`${examStats.averageScore}%`}
         />
         <MetricCard
-          detail="Abaixo de 70% ou 3 erros recentes"
+          detail={`${examStats.completedAssessments}/${examStats.totalAssessments} avaliações concluídas`}
+          icon={Target}
+          label="Melhor nota"
+          tone="text-sky-300"
+          value={`${examStats.bestScore}%`}
+        />
+        <MetricCard
+          detail="Apenas erros de provas oficiais entram aqui"
           icon={CircleAlert}
-          label="Tópicos fracos"
+          label="Pontos fracos"
           tone="text-rose-300"
           value={String(diagnostics.weakTopics.length)}
         />
         <MetricCard
-          detail="Por questão respondida"
-          icon={LineChart}
-          label="Tempo médio"
+          detail={
+            lastPractice
+              ? `${lastPractice.correct}/${lastPractice.total} no último treino`
+              : "Treinos não alteram sua nota oficial"
+          }
+          icon={ListChecks}
+          label="Exercícios feitos"
           tone="text-amber-300"
-          value={`${diagnostics.averageTimeSeconds}s`}
-        />
-        <MetricCard
-          detail="Conteúdo base + importadas"
-          icon={Database}
-          label="Banco ativo"
-          tone="text-sky-300"
-          value={String(questions.length)}
+          value={String(practiceSummaries.reduce((total, item) => total + item.total, 0))}
         />
       </div>
 
       {attempts.length === 0 && (
         <Alert className="rounded-md">
           <ClipboardList className="h-4 w-4" aria-hidden="true" />
-          <AlertTitle>Nenhuma tentativa ainda</AlertTitle>
+          <AlertTitle>Nenhuma prova oficial entregue ainda</AlertTitle>
           <AlertDescription>
-            O dashboard começa vazio quando você está começando. Resolva questões para
-            gerar diagnóstico real por tópico e pré-requisito.
+            Você pode treinar à vontade sem prejudicar o painel. Quando entregar
+            uma prova oficial, suas notas, erros e recomendações aparecerão aqui.
           </AlertDescription>
         </Alert>
       )}
@@ -965,9 +1433,9 @@ function DashboardView({
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <CardTitle>Progresso por disciplina</CardTitle>
+                <CardTitle>Progresso oficial por disciplina</CardTitle>
                 <CardDescription>
-                  Cobertura de tópicos e taxa de acerto nos seus estudos.
+                  Cobertura calculada por provas oficiais e avaliações temáticas.
                 </CardDescription>
               </div>
               <Button onClick={() => onNavigate("trilhas")} size="sm" variant="secondary">
@@ -1012,15 +1480,109 @@ function DashboardView({
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <Card className="rounded-md">
+          <CardHeader>
+            <CardTitle>Provas oficiais</CardTitle>
+            <CardDescription>
+              Prazos, status e notas que realmente contam no dashboard.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {assessments.slice(0, 5).map((assessment) => {
+              const status = getAssessmentStatusLabel(
+                assessment,
+                examStats.submittedAttempts,
+                referenceDate,
+              );
+              const latestAttempt = examStats.submittedAttempts.find(
+                (attempt) => attempt.assessmentId === assessment.id,
+              );
+
+              return (
+                <div className="rounded-md border border-border p-4" key={assessment.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{assessment.title}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {formatAssessmentWindow(assessment)}
+                      </p>
+                    </div>
+                    <Badge
+                      className="rounded-md"
+                      variant={status === "entregue" ? "secondary" : "outline"}
+                    >
+                      {status}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Nota mínima</span>
+                    <span className="font-medium">{assessment.minimumScore}%</span>
+                  </div>
+                  {latestAttempt ? (
+                    <div className="mt-2 flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Sua nota</span>
+                      <span className="font-semibold">{latestAttempt.score}%</span>
+                    </div>
+                  ) : (
+                    <Button
+                      className="mt-4 w-full"
+                      onClick={() => onStartExam(assessment)}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      Fazer prova
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
         <WeakTopicsPanel
           diagnostics={diagnostics}
           onStartPractice={onStartPractice}
         />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
         <RecentMistakesPanel
           attempts={diagnostics.recentMistakes}
           onStartPractice={onStartPractice}
         />
+        <Card className="rounded-md">
+          <CardHeader>
+            <CardTitle>Atividade de treino</CardTitle>
+            <CardDescription>
+              Exercícios comuns ficam aqui como volume de estudo, sem virar falha oficial.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {practiceSummaries.length === 0 && (
+              <EmptyState
+                description="Faça exercícios na aba Prática e finalize o treino para registrar volume de estudo nesta sessão."
+                icon={ListChecks}
+                title="Sem treinos finalizados"
+              />
+            )}
+            {practiceSummaries.slice(0, 4).map((summary) => (
+              <div className="rounded-md border border-border p-4" key={summary.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{getTopic(summary.topicId)?.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {getCourse(summary.courseId)?.title}
+                    </p>
+                  </div>
+                  <Badge className="rounded-md" variant="outline">
+                    {summary.correct}/{summary.total}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -1168,10 +1730,10 @@ function PrerequisitesView({
 
 function PracticeView({
   activeQuestion,
-  diagnostics,
   feedback,
   filteredQuestions,
   onAnswerQuestion,
+  onFinishPractice,
   onMoveToNextQuestion,
   onSelectCourse,
   onSelectOption,
@@ -1180,12 +1742,13 @@ function PracticeView({
   selectedCourseId,
   selectedOptionId,
   selectedTopicId,
+  sessionAnswers,
 }: {
   activeQuestion: Question | null;
-  diagnostics: Diagnostics;
   feedback: Feedback | null;
   filteredQuestions: Question[];
   onAnswerQuestion: () => Promise<void>;
+  onFinishPractice: () => void;
   onMoveToNextQuestion: () => void;
   onSelectCourse: (courseId: CourseId) => void;
   onSelectOption: (optionId: string) => void;
@@ -1194,16 +1757,21 @@ function PracticeView({
   selectedCourseId: CourseId;
   selectedOptionId: string | null;
   selectedTopicId: string;
+  sessionAnswers: PracticeSessionAnswer[];
 }) {
   const selectedTopic = getTopic(selectedTopicId);
-  const topicStat = diagnostics.topicStats.find(
-    (stat) => stat.topicId === selectedTopicId,
+  const topicSessionAnswers = sessionAnswers.filter(
+    (answer) =>
+      answer.courseId === selectedCourseId && answer.topicId === selectedTopicId,
   );
+  const topicSessionCorrect = topicSessionAnswers.filter(
+    (answer) => answer.correct,
+  ).length;
 
   return (
     <div className="space-y-6">
       <ViewHeader
-        description="Escolha uma disciplina e resolva questões com feedback e persistência."
+        description="Escolha uma disciplina e treine sem pressão. Os erros deste treino não entram no dashboard oficial."
         icon={ListChecks}
         title="Prática"
       />
@@ -1246,18 +1814,28 @@ function PracticeView({
             </Select>
           </div>
           <div className="rounded-md border border-border p-3">
-            <p className="text-sm text-muted-foreground">Status do tópico</p>
+            <p className="text-sm text-muted-foreground">Treino atual</p>
             <div className="mt-1 flex items-center justify-between">
               <p className="font-medium">
-                {topicStat?.attempts ? percent(topicStat.accuracy) : "sem dados"}
+                {topicSessionAnswers.length
+                  ? `${topicSessionCorrect}/${topicSessionAnswers.length}`
+                  : "sem respostas"}
               </p>
-              <Badge variant={topicStat?.weak ? "destructive" : "secondary"}>
-                {topicStat?.weak ? "revisar" : "em andamento"}
+              <Badge variant="secondary">
+                temporário
               </Badge>
             </div>
           </div>
         </CardContent>
       </Card>
+      <Alert className="rounded-md border-emerald-500/30">
+        <CheckCircle2 className="h-4 w-4 text-emerald-300" aria-hidden="true" />
+        <AlertTitle>Treino sem impacto oficial</AlertTitle>
+        <AlertDescription>
+          Use esta área para errar, consultar explicações e revisar vídeos. Só a
+          aba Provas salva desempenho no dashboard.
+        </AlertDescription>
+      </Alert>
       <div className="grid gap-6 xl:grid-cols-[0.34fr_0.66fr]">
         <Card className="rounded-md">
           <CardHeader>
@@ -1299,6 +1877,21 @@ function PracticeView({
                 )}
               </div>
             </ScrollArea>
+          </CardContent>
+          <CardContent className="border-t border-border pt-4">
+            <Button
+              className="w-full"
+              disabled={topicSessionAnswers.length === 0}
+              onClick={onFinishPractice}
+              variant="secondary"
+            >
+              Finalizar treino
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              Ao finalizar, o app registra apenas o volume desta sessão na tela
+              inicial. Erros não viram histórico oficial.
+            </p>
           </CardContent>
         </Card>
         <QuestionCard
@@ -1369,7 +1962,7 @@ function QuestionCard({
         </div>
         <CardTitle className="leading-8">{question.prompt}</CardTitle>
         <CardDescription>
-          O feedback salva a tentativa no Supabase antes de atualizar o painel.
+          Feedback imediato de treino. Esta resposta não altera suas notas oficiais.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -1432,9 +2025,9 @@ function QuestionCard({
             {pending ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
-              <SearchCheck className="h-4 w-4" aria-hidden="true" />
+            <SearchCheck className="h-4 w-4" aria-hidden="true" />
             )}
-            Confirmar resposta
+            Confirmar treino
           </Button>
           <Button disabled={!feedback} onClick={onMoveToNextQuestion} variant="secondary">
             Próxima questão
@@ -1604,6 +2197,474 @@ function formatViews(viewCount: number) {
 function formatPublishedAt(date: string) {
   const [year, month, day] = date.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function ExamsView({
+  activeSession,
+  assessments,
+  attempts,
+  onCancelSession,
+  onSelectAnswer,
+  onStartExam,
+  onSubmitExam,
+  referenceDate,
+}: {
+  activeSession: ExamSession | null;
+  assessments: OfficialAssessment[];
+  attempts: ExamAttempt[];
+  onCancelSession: () => void;
+  onSelectAnswer: (questionId: string, optionId: string) => void;
+  onStartExam: (assessment: OfficialAssessment) => void;
+  onSubmitExam: (forceStatus?: ExamAttemptStatus) => Promise<void>;
+  referenceDate: string;
+}) {
+  const examStats = buildOfficialExamStats(assessments, attempts, referenceDate);
+
+  if (activeSession) {
+    return (
+      <ExamRunner
+        session={activeSession}
+        onCancelSession={onCancelSession}
+        onSelectAnswer={onSelectAnswer}
+        onSubmitExam={onSubmitExam}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <ViewHeader
+        description="Avaliações oficiais com sorteio de questões, tempo calculado por dificuldade e resultado salvo no Supabase."
+        icon={GraduationCap}
+        title="Provas oficiais"
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard
+          detail="Baseada apenas em provas entregues"
+          icon={LineChart}
+          label="Média oficial"
+          tone="text-emerald-300"
+          value={`${examStats.averageScore}%`}
+        />
+        <MetricCard
+          detail={`${examStats.completedAssessments}/${examStats.totalAssessments} avaliações`}
+          icon={CheckCircle2}
+          label="Conclusão"
+          tone="text-sky-300"
+          value={`${Math.round(
+            (examStats.completedAssessments / Math.max(1, examStats.totalAssessments)) *
+              100,
+          )}%`}
+        />
+        <MetricCard
+          detail="Prazos vencidos ou atrasados"
+          icon={CalendarDays}
+          label="Pendências"
+          tone="text-amber-300"
+          value={String(examStats.overdueAssessments.length)}
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {assessments.map((assessment) => (
+          <ExamAssessmentCard
+            assessment={assessment}
+            attempts={attempts}
+            key={assessment.id}
+            onStartExam={onStartExam}
+            referenceDate={referenceDate}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ExamAssessmentCard({
+  assessment,
+  attempts,
+  onStartExam,
+  referenceDate,
+}: {
+  assessment: OfficialAssessment;
+  attempts: ExamAttempt[];
+  onStartExam: (assessment: OfficialAssessment) => void;
+  referenceDate: string;
+}) {
+  const status = getAssessmentStatusLabel(assessment, attempts, referenceDate);
+  const assessmentAttempts = attempts.filter(
+    (attempt) => attempt.assessmentId === assessment.id,
+  );
+  const bestAttempt = assessmentAttempts
+    .filter((attempt) => attempt.status !== "in_progress")
+    .sort((left, right) => right.score - left.score)[0];
+  const attemptsLeft = Math.max(0, assessment.maxAttempts - assessmentAttempts.length);
+  const disabled = status === "expirada" || attemptsLeft === 0;
+
+  return (
+    <Card className="rounded-md">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>{assessment.title}</CardTitle>
+            <CardDescription className="mt-1 leading-6">
+              {assessment.description}
+            </CardDescription>
+          </div>
+          <Badge className="rounded-md" variant={status === "disponível" ? "secondary" : "outline"}>
+            {status}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MetricInline label="Questões" value={String(assessment.questionCount)} />
+          <MetricInline label="Nota mínima" value={`${assessment.minimumScore}%`} />
+          <MetricInline label="Tentativas" value={`${attemptsLeft}/${assessment.maxAttempts}`} />
+        </div>
+        <div className="rounded-md border border-border p-3 text-sm">
+          <div className="flex items-start gap-3">
+            <CalendarDays className="mt-0.5 h-4 w-4 text-muted-foreground" />
+            <div>
+              <p className="font-medium">{describeAssessmentScope(assessment)}</p>
+              <p className="mt-1 text-muted-foreground">
+                {formatAssessmentWindow(assessment)}
+              </p>
+            </div>
+          </div>
+        </div>
+        {bestAttempt && (
+          <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+            Melhor resultado: <span className="font-semibold">{bestAttempt.score}%</span>{" "}
+            ({bestAttempt.correctCount}/{bestAttempt.questionCount})
+          </div>
+        )}
+        <Button
+          className="w-full"
+          disabled={disabled}
+          onClick={() => onStartExam(assessment)}
+        >
+          {bestAttempt ? "Refazer prova" : "Iniciar prova"}
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ExamRunner({
+  session,
+  onCancelSession,
+  onSelectAnswer,
+  onSubmitExam,
+}: {
+  session: ExamSession;
+  onCancelSession: () => void;
+  onSelectAnswer: (questionId: string, optionId: string) => void;
+  onSubmitExam: (forceStatus?: ExamAttemptStatus) => Promise<void>;
+}) {
+  const [now, setNow] = useState(session.startedAt);
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const elapsedSeconds = Math.max(0, Math.round((now - session.startedAt) / 1000));
+  const remainingSeconds = Math.max(0, session.timeLimitSeconds - elapsedSeconds);
+  const answeredCount = Object.keys(session.selectedAnswers).length;
+  const allAnswered = answeredCount === session.questions.length;
+  const expired = remainingSeconds === 0;
+
+  async function handleSubmit(status?: ExamAttemptStatus) {
+    setPending(true);
+    await onSubmitExam(status);
+    setPending(false);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 rounded-md border border-border bg-card p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">Prova em andamento</p>
+          <h1 className="text-2xl font-semibold">{session.assessment.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {answeredCount}/{session.questions.length} questões respondidas
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge className="rounded-md" variant={expired ? "destructive" : "secondary"}>
+            <Timer className="mr-1 h-4 w-4" aria-hidden="true" />
+            {formatDuration(remainingSeconds)}
+          </Badge>
+          <Button onClick={onCancelSession} variant="outline">
+            Sair da prova
+          </Button>
+          <Button
+            disabled={pending || (!allAnswered && !expired)}
+            onClick={() => handleSubmit(expired ? "expired" : undefined)}
+          >
+            {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            Entregar prova
+          </Button>
+        </div>
+      </div>
+
+      {expired && (
+        <Alert className="rounded-md" variant="destructive">
+          <CircleAlert className="h-4 w-4" aria-hidden="true" />
+          <AlertTitle>Tempo esgotado</AlertTitle>
+          <AlertDescription>
+            Entregue a prova para salvar o resultado com as respostas já marcadas.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="space-y-4">
+        {session.questions.map((question, index) => (
+          <Card className="rounded-md" key={question.id}>
+            <CardHeader>
+              <div className="flex flex-wrap gap-2">
+                <Badge className="rounded-md" variant="secondary">
+                  Questão {index + 1}
+                </Badge>
+                <Badge className="rounded-md" variant="outline">
+                  {question.difficulty}
+                </Badge>
+                <Badge className="rounded-md" variant="outline">
+                  {getTopic(question.topicId)?.title}
+                </Badge>
+              </div>
+              <CardTitle className="leading-8">{question.prompt}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              {question.options.map((option) => {
+                const selected = session.selectedAnswers[question.id] === option.id;
+
+                return (
+                  <button
+                    className={cn(
+                      "flex min-h-14 items-start gap-3 rounded-md border border-border p-4 text-left transition hover:bg-accent",
+                      selected && "border-primary bg-accent",
+                    )}
+                    disabled={expired || pending}
+                    key={option.id}
+                    onClick={() => onSelectAnswer(question.id, option.id)}
+                    type="button"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border font-mono text-sm uppercase">
+                      {option.id}
+                    </span>
+                    <span className="leading-6">{option.text}</span>
+                  </button>
+                );
+              })}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminView({
+  assessments,
+  onSaveAssessment,
+  user,
+}: {
+  assessments: OfficialAssessment[];
+  onSaveAssessment: (assessment: OfficialAssessment) => Promise<boolean>;
+  user: StudyUser;
+}) {
+  if (user.role !== "admin") {
+    return (
+      <div className="space-y-6">
+        <ViewHeader
+          description="Configurações administrativas ficam disponíveis apenas para perfis admin."
+          icon={Settings}
+          title="Admin"
+        />
+        <Alert className="rounded-md" variant="destructive">
+          <CircleAlert className="h-4 w-4" aria-hidden="true" />
+          <AlertTitle>Acesso restrito</AlertTitle>
+          <AlertDescription>
+            Seu perfil atual não tem permissão para alterar provas e regras.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <ViewHeader
+        description="Controle datas de prova, nota mínima, número de tentativas e quantidade de questões."
+        icon={Settings}
+        title="Admin"
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard
+          detail="Provas temáticas e agendadas"
+          icon={GraduationCap}
+          label="Avaliações"
+          tone="text-sky-300"
+          value={String(assessments.length)}
+        />
+        <MetricCard
+          detail="Base por dificuldade"
+          icon={Timer}
+          label="Tempo"
+          tone="text-amber-300"
+          value="2/4/7 min"
+        />
+        <MetricCard
+          detail="Padrão inicial"
+          icon={Target}
+          label="Nota mínima"
+          tone="text-emerald-300"
+          value="70%"
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {assessments.map((assessment) => (
+          <AdminAssessmentCard
+            assessment={assessment}
+            key={assessment.id}
+            onSaveAssessment={onSaveAssessment}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminAssessmentCard({
+  assessment,
+  onSaveAssessment,
+}: {
+  assessment: OfficialAssessment;
+  onSaveAssessment: (assessment: OfficialAssessment) => Promise<boolean>;
+}) {
+  const [draft, setDraft] = useState(assessment);
+  const [pending, setPending] = useState(false);
+
+  async function handleSave() {
+    setPending(true);
+    await onSaveAssessment(draft);
+    setPending(false);
+  }
+
+  return (
+    <Card className="rounded-md">
+      <CardHeader>
+        <CardTitle>{assessment.title}</CardTitle>
+        <CardDescription>{describeAssessmentScope(assessment)}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Disponível em</Label>
+            <Input
+              type="datetime-local"
+              value={toDateTimeLocalValue(draft.availableAt)}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  availableAt: fromDateTimeLocalValue(event.target.value),
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Prazo final</Label>
+            <Input
+              type="datetime-local"
+              value={toDateTimeLocalValue(draft.dueAt)}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  dueAt: fromDateTimeLocalValue(event.target.value),
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Questões</Label>
+            <Input
+              min={1}
+              type="number"
+              value={draft.questionCount}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  questionCount: Number(event.target.value),
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Nota mínima (%)</Label>
+            <Input
+              max={100}
+              min={0}
+              type="number"
+              value={draft.minimumScore}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  minimumScore: Number(event.target.value),
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Tentativas</Label>
+            <Input
+              min={1}
+              type="number"
+              value={draft.maxAttempts}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  maxAttempts: Number(event.target.value),
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Após o prazo</Label>
+            <Select
+              value={draft.deadlinePolicy}
+              onValueChange={(value) =>
+                setDraft((current) => ({
+                  ...current,
+                  deadlinePolicy: value as OfficialAssessment["deadlinePolicy"],
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="late">Fica atrasada</SelectItem>
+                <SelectItem value="expire">Expira</SelectItem>
+                <SelectItem value="available">Continua disponível</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <Button disabled={pending} onClick={handleSave}>
+          {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          Salvar configuração
+        </Button>
+      </CardContent>
+    </Card>
+  );
 }
 
 function PlaylistsView({ questions }: { questions: Question[] }) {
@@ -2244,7 +3305,7 @@ function EmptyState({
   );
 }
 
-function rowToAttempt(row: AttemptRow): Attempt {
+function officialAnswerRowToAttempt(row: OfficialExamAnswerRow): Attempt {
   return {
     id: row.id,
     questionId: row.question_id,
@@ -2257,7 +3318,45 @@ function rowToAttempt(row: AttemptRow): Attempt {
     timeSpentSeconds: row.time_spent_seconds,
     difficulty: row.difficulty,
     errorType: row.error_type,
+    createdAt: row.answered_at,
+  };
+}
+
+function rowToExamAttempt(row: OfficialExamAttemptRow): ExamAttempt {
+  return {
+    id: row.id,
+    assessmentId: row.assessment_id,
+    courseId: row.course_id,
+    topicId: row.topic_id,
+    status: row.status,
+    score: row.score,
+    correctCount: row.correct_count,
+    questionCount: row.question_count,
+    questionIds: row.question_ids ?? [],
+    timeLimitSeconds: row.time_limit_seconds,
+    timeSpentSeconds: row.time_spent_seconds,
+    startedAt: row.started_at,
+    submittedAt: row.submitted_at,
     createdAt: row.created_at,
+  };
+}
+
+function rowToAssessment(row: AssessmentScheduleRow): OfficialAssessment {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    courseId: row.course_id,
+    topicId: row.topic_id,
+    scope: row.scope,
+    questionCount: row.question_count,
+    difficultyMix: row.difficulty_mix ?? {},
+    minimumScore: row.minimum_score,
+    maxAttempts: row.max_attempts,
+    availableAt: row.available_at,
+    dueAt: row.due_at,
+    deadlinePolicy: row.deadline_policy,
+    required: row.required,
   };
 }
 
@@ -2273,6 +3372,7 @@ function authUserToStudyUser(authUser: {
     id: authUser.id,
     name: authUser.user_metadata?.name ?? authUser.user_metadata?.full_name ?? email,
     email,
+    role: email === INITIAL_EMAIL ? "admin" : "student",
     createdAt: authUser.created_at ?? new Date().toISOString(),
   };
 }
@@ -2304,6 +3404,22 @@ function readRememberedProfile(): { email?: string; name?: string } | null {
 
 function percent(value: number) {
   return `${Math.round(value * 100)}%`;
+}
+
+function formatDuration(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function toDateTimeLocalValue(value: string) {
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function fromDateTimeLocalValue(value: string) {
+  return new Date(value).toISOString();
 }
 
 function initials(name: string) {

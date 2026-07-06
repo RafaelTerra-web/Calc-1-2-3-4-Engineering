@@ -9,6 +9,14 @@ export type Difficulty = "basico" | "medio" | "avancado";
 
 export type VideoKind = "practice" | "theory" | "prerequisite";
 
+export type UserRole = "student" | "admin";
+
+export type AssessmentScope = "topic" | "module" | "course" | "scheduled";
+
+export type DeadlinePolicy = "expire" | "late" | "available";
+
+export type ExamAttemptStatus = "in_progress" | "submitted" | "expired" | "late";
+
 export type Course = {
   id: CourseId;
   title: string;
@@ -95,7 +103,75 @@ export type StudyUser = {
   id: string;
   name: string;
   email: string;
+  role: UserRole;
   createdAt: string;
+};
+
+export type PracticeSessionAnswer = {
+  questionId: string;
+  courseId: CourseId;
+  topicId: string;
+  selectedOptionId: string;
+  correctOptionId: string;
+  correct: boolean;
+  errorType: string;
+};
+
+export type PracticeSessionSummary = {
+  id: string;
+  courseId: CourseId;
+  topicId: string;
+  total: number;
+  correct: number;
+  completedAt: string;
+};
+
+export type DifficultyTimeSettings = Record<Difficulty, number>;
+
+export type DifficultyMix = Partial<Record<Difficulty, number>>;
+
+export type OfficialAssessment = {
+  id: string;
+  title: string;
+  description: string;
+  courseId: CourseId;
+  topicId: string;
+  scope: AssessmentScope;
+  questionCount: number;
+  difficultyMix: DifficultyMix;
+  minimumScore: number;
+  maxAttempts: number;
+  availableAt: string;
+  dueAt: string;
+  deadlinePolicy: DeadlinePolicy;
+  required: boolean;
+};
+
+export type ExamAttempt = {
+  id: string;
+  assessmentId: string;
+  courseId: CourseId;
+  topicId: string;
+  status: ExamAttemptStatus;
+  score: number;
+  correctCount: number;
+  questionCount: number;
+  timeLimitSeconds: number;
+  timeSpentSeconds: number;
+  questionIds: string[];
+  startedAt: string;
+  submittedAt: string | null;
+  createdAt: string;
+};
+
+export type OfficialExamStats = {
+  submittedAttempts: ExamAttempt[];
+  averageScore: number;
+  bestScore: number;
+  completedAssessments: number;
+  totalAssessments: number;
+  nextAssessment: OfficialAssessment | null;
+  overdueAssessments: OfficialAssessment[];
 };
 
 export type CourseStats = {
