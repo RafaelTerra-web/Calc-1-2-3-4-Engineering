@@ -95,6 +95,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -1442,28 +1449,145 @@ function TopBar({
             <h2 className="text-lg font-semibold">{title}</h2>
           </div>
         </div>
-        <div className="hidden items-center gap-2 sm:flex">
-          <ThemeToggleButton theme={theme} onToggleTheme={onToggleTheme} />
-          {assessmentNotifications.length > 0 && (
-            <Button
-              className="max-w-xs justify-start gap-2 overflow-hidden"
-              onClick={() => onNavigate("provas")}
-              size="sm"
-              variant="secondary"
-            >
-              <Bell className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
-              <span className="truncate">{assessmentNotifications[0]?.message}</span>
-            </Button>
-          )}
-          <Badge className="rounded-md" variant="secondary">
-            {examStats.submittedAttempts.length} provas
-          </Badge>
-          <Badge className="rounded-md" variant="outline">
-            {examStats.averageScore}% média
-          </Badge>
+        <div className="flex items-center gap-2">
+          <NotificationBellMenu
+            notifications={assessmentNotifications}
+            onNavigate={onNavigate}
+          />
+          <div className="hidden items-center gap-2 sm:flex">
+            <ThemeToggleButton theme={theme} onToggleTheme={onToggleTheme} />
+            <Badge className="rounded-md" variant="secondary">
+              {examStats.submittedAttempts.length} provas
+            </Badge>
+            <Badge className="rounded-md" variant="outline">
+              {examStats.averageScore}% média
+            </Badge>
+          </div>
         </div>
       </div>
     </header>
+  );
+}
+
+function NotificationBellMenu({
+  notifications,
+  onNavigate,
+}: {
+  notifications: AssessmentNotification[];
+  onNavigate: (view: ViewId) => void;
+}) {
+  const notificationCount = notifications.length;
+  const hasNotifications = notificationCount > 0;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label={
+              hasNotifications
+                ? `Abrir notificações: ${notificationCount} pendentes`
+                : "Abrir notificações"
+            }
+            className="relative"
+            size="icon"
+            variant={hasNotifications ? "secondary" : "outline"}
+          />
+        }
+      >
+        <Bell
+          className={cn(
+            "h-4 w-4",
+            hasNotifications && "text-amber-600 dark:text-amber-300",
+          )}
+          aria-hidden="true"
+        />
+        {hasNotifications && (
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[0.62rem] font-semibold leading-none text-primary-foreground">
+            {notificationCount > 9 ? "9+" : notificationCount}
+          </span>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-[min(23rem,calc(100vw-2rem))] rounded-md p-0"
+        sideOffset={8}
+      >
+        <div className="space-y-3 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <DropdownMenuLabel className="px-0 py-0 text-sm font-semibold text-foreground">
+                Notificações
+              </DropdownMenuLabel>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Prazos e avisos calculados pela agenda de provas.
+              </p>
+            </div>
+            <Badge className="rounded-md" variant={hasNotifications ? "secondary" : "outline"}>
+              {notificationCount}
+            </Badge>
+          </div>
+
+          <DropdownMenuSeparator className="mx-0" />
+
+          {hasNotifications ? (
+            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+              {notifications.slice(0, 6).map((notification) => (
+                <div
+                  className={cn(
+                    "rounded-md border p-3",
+                    notification.tone === "danger" &&
+                      "border-rose-500/40 bg-rose-500/10",
+                    notification.tone === "warning" &&
+                      "border-amber-500/40 bg-amber-500/10",
+                    notification.tone === "info" && "border-border bg-background/70",
+                  )}
+                  key={notification.id}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/70 text-amber-600 dark:text-amber-300">
+                      <Bell className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium leading-5">
+                        {notification.message}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Prazo: {formatNotificationDate(notification.dueAt)}
+                      </p>
+                    </div>
+                    <Badge
+                      className="shrink-0 rounded-md"
+                      variant={
+                        notification.tone === "danger" ? "destructive" : "outline"
+                      }
+                    >
+                      {formatNotificationStatus(notification)}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-border p-5 text-center">
+              <CheckCircle2
+                className="mx-auto h-6 w-6 text-emerald-600 dark:text-emerald-300"
+                aria-hidden="true"
+              />
+              <p className="mt-3 text-sm font-medium">Sem notificações agora</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Quando houver prova próxima, atraso ou aviso importante, ele aparece aqui.
+              </p>
+            </div>
+          )}
+
+          <Button className="w-full" onClick={() => onNavigate("provas")} size="sm">
+            Abrir provas
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -3869,6 +3993,28 @@ function readRememberedProfile(): { email?: string; name?: string } | null {
 function applyTheme(theme: ThemeMode) {
   document.documentElement.classList.toggle("dark", theme === "dark");
   document.documentElement.style.colorScheme = theme;
+}
+
+function formatNotificationDate(dueAt: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(dueAt));
+}
+
+function formatNotificationStatus(notification: AssessmentNotification) {
+  if (notification.daysUntilDue < 0) {
+    return "atrasada";
+  }
+
+  if (notification.daysUntilDue === 0) {
+    return "hoje";
+  }
+
+  return `${notification.daysUntilDue}d`;
 }
 
 function percent(value: number) {
