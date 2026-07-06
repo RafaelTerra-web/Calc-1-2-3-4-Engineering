@@ -1608,21 +1608,33 @@ function formatPublishedAt(date: string) {
 
 function PlaylistsView({ questions }: { questions: Question[] }) {
   const groups: Array<{
+    accent: string;
+    description: string;
+    focus: string;
+    icon: typeof Video;
     kind: VideoResource["kind"];
     title: string;
-    description: string;
   }> = [
     {
+      accent: "border-l-coral/80",
+      focus: "Treino guiado",
+      icon: Play,
       kind: "practice",
       title: "Prática e resolução",
       description: "Vídeos de exercícios resolvidos conectados às questões do app.",
     },
     {
+      accent: "border-l-sky-400/80",
+      focus: "Conceito antes da conta",
+      icon: BookOpen,
       kind: "theory",
       title: "Teoria e fundamentos",
       description: "Aulas conceituais para entender o assunto antes de praticar.",
     },
     {
+      accent: "border-l-emerald-400/80",
+      focus: "Base matemática",
+      icon: Brain,
       kind: "prerequisite",
       title: "Pré-requisitos para entender",
       description: "Base de álgebra, funções, trigonometria e geometria analítica.",
@@ -1632,72 +1644,150 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
   return (
     <div className="space-y-6">
       <ViewHeader
-        description="Biblioteca curada por questão, com vídeos individuais ordenados por relação direta e visualizações."
+        description="Três playlists internas curadas por questão, com vídeos individuais ordenados por relação direta, atualidade e visualizações."
         icon={Video}
         title="Playlists"
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-3">
         {groups.map((group) => {
           const videos = getPlaylistVideos(group.kind);
+          const featuredVideo = videos[0];
+          const Icon = group.icon;
           const totalViews = videos.reduce(
             (total, video) => total + (video.viewCount ?? 0),
             0,
           );
+          const relatedQuestionCount = new Set(
+            videos.flatMap((video) => video.questionIds ?? []),
+          ).size;
 
           return (
-            <div className="rounded-md border border-border bg-card/50 p-4" key={group.kind}>
-              <p className="text-sm font-semibold">{group.title}</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                {group.description}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Badge className="rounded-md" variant="secondary">
-                  {videos.length} vídeos
-                </Badge>
-                <Badge className="rounded-md" variant="outline">
-                  {formatViews(totalViews)} views
-                </Badge>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="space-y-6">
-        {groups.map((group) => {
-          const videos = getPlaylistVideos(group.kind);
-
-          return (
-            <section
-              className="space-y-4 rounded-md border border-border bg-card/40 p-4"
+            <Card
+              className={cn(
+                "rounded-lg border-l-4 bg-card/65 shadow-none",
+                group.accent,
+              )}
               key={group.kind}
+              size="sm"
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold">{group.title}</h3>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    {group.description}
-                  </p>
+              <CardHeader className="border-b border-border/70 pb-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                      <Icon className="size-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        {group.focus}
+                      </p>
+                      <CardTitle className="mt-1 text-lg">{group.title}</CardTitle>
+                    </div>
+                  </div>
+                  <Badge className="rounded-md" variant="secondary">
+                    {videos.length} vídeos
+                  </Badge>
                 </div>
-                <Badge className="rounded-md" variant="secondary">
-                  {videos.length} vídeos
-                </Badge>
-              </div>
+                <CardDescription className="leading-6">
+                  {group.description}
+                </CardDescription>
+              </CardHeader>
 
-              <div className="grid gap-3 lg:grid-cols-2">
-                {videos.map((video) => (
-                  <PlaylistLibraryItem
-                    key={video.id}
-                    questions={questions}
-                    video={video}
+              <CardContent className="flex flex-1 flex-col gap-4">
+                <div className="grid grid-cols-3 gap-2">
+                  <PlaylistMetric label="Views" value={formatViews(totalViews)} />
+                  <PlaylistMetric
+                    label="Questões"
+                    value={String(relatedQuestionCount)}
                   />
-                ))}
-              </div>
-            </section>
+                  <PlaylistMetric
+                    label="Fonte"
+                    value={
+                      featuredVideo?.sourcePlaylistTitle === group.title
+                        ? "Interna"
+                        : "Curada"
+                    }
+                  />
+                </div>
+
+                {featuredVideo ? (
+                  <div className="space-y-3">
+                    <div className="overflow-hidden rounded-md border border-border bg-background">
+                      <iframe
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        className="aspect-video w-full"
+                        loading="lazy"
+                        src={`${featuredVideo.embedUrl}?rel=0`}
+                        title={featuredVideo.title}
+                      />
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                          Vídeo de abertura
+                        </p>
+                        <h3 className="mt-1 text-sm font-semibold leading-6">
+                          {featuredVideo.title}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {featuredVideo.channel}
+                        </p>
+                      </div>
+                      <a
+                        aria-label={`Abrir ${featuredVideo.title} no YouTube`}
+                        className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background transition hover:bg-muted"
+                        href={featuredVideo.youtubeUrl}
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        <ExternalLink className="size-4" aria-hidden="true" />
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="rounded-md border border-dashed border-border p-3 text-sm leading-6 text-muted-foreground">
+                    Sem vídeos curados nesta playlist ainda.
+                  </p>
+                )}
+
+                <Separator />
+
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold">Biblioteca da playlist</p>
+                  <Badge className="rounded-md" variant="outline">
+                    Mais vistos primeiro
+                  </Badge>
+                </div>
+
+                <ScrollArea className="h-[520px] pr-3">
+                  <div className="space-y-4">
+                    {videos.map((video, index) => (
+                      <PlaylistLibraryItem
+                        key={video.id}
+                        questions={questions}
+                        rank={index + 1}
+                        video={video}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function PlaylistMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-background/55 p-3">
+      <p className="text-[0.72rem] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-semibold">{value}</p>
     </div>
   );
 }
@@ -1710,9 +1800,11 @@ function getPlaylistVideos(kind: VideoResource["kind"]) {
 
 function PlaylistLibraryItem({
   questions,
+  rank,
   video,
 }: {
   questions: Question[];
+  rank: number;
   video: VideoResource;
 }) {
   const relatedQuestions = (video.questionIds ?? [])
@@ -1720,19 +1812,22 @@ function PlaylistLibraryItem({
     .filter((question): question is Question => Boolean(question));
 
   return (
-    <article className="rounded-md border border-border bg-background/65 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+    <article className="border-b border-border/70 pb-4 last:border-b-0">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted font-mono text-xs text-muted-foreground">
+          {rank}
+        </span>
+        <div className="min-w-0 flex-1">
           <h4 className="font-semibold leading-6">{video.title}</h4>
           <p className="mt-1 text-sm text-muted-foreground">{video.channel}</p>
         </div>
         <a
-          className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border border-border bg-background px-2.5 text-[0.8rem] font-medium transition hover:bg-muted"
+          aria-label={`Abrir ${video.title} no YouTube`}
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-background transition hover:bg-muted"
           href={video.youtubeUrl}
           rel="noopener noreferrer"
           target="_blank"
         >
-          YouTube
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
         </a>
       </div>
