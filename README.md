@@ -18,6 +18,7 @@ Copie `.env.example` para `.env.local` e preencha:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+INITIAL_USER_PASSWORD=
 
 # Criadas automaticamente pelo Vercel Marketplace:
 POSTGRES_URL_NON_POOLING=
@@ -53,9 +54,10 @@ O seed:
 
 - upserta cursos, tópicos, pré-requisitos e questões autorais iniciais;
 - cria ou atualiza o usuário `rafaelmodiecai@gmail.com`;
-- imprime uma senha temporária forte no terminal.
+- usa `INITIAL_USER_PASSWORD` quando ela estiver definida no `.env.local`;
+- se `INITIAL_USER_PASSWORD` estiver vazia, imprime uma senha temporária forte no terminal.
 
-Não salve a senha temporária no repositório. Troque-a depois pelo painel do Supabase ou por fluxo de recuperação de senha.
+Não salve senhas reais no repositório. Defina `INITIAL_USER_PASSWORD` apenas no `.env.local`, rode `npm run db:seed` para aplicar a troca e remova ou altere a variável quando não precisar mais dela.
 
 ## Rodar localmente
 

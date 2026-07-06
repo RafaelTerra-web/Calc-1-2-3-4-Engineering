@@ -11,6 +11,7 @@ import {
 const initialEmail = "rafaelmodiecai@gmail.com";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const requestedInitialPassword = process.env.INITIAL_USER_PASSWORD;
 
 if (!supabaseUrl || !serviceRoleKey) {
   throw new Error(
@@ -25,7 +26,8 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
   },
 });
 
-const temporaryPassword = `${randomBytes(18).toString("base64url")}A1!`;
+const initialPassword =
+  requestedInitialPassword ?? `${randomBytes(18).toString("base64url")}A1!`;
 
 async function upsertAcademicContent() {
   const { error: coursesError } = await supabase.from("courses").upsert(
@@ -156,13 +158,13 @@ async function upsertInitialUser() {
 
   const userResult = existingUser
     ? await supabase.auth.admin.updateUserById(existingUser.id, {
-        password: temporaryPassword,
+        password: initialPassword,
         email_confirm: true,
         user_metadata: { name: "Rafael Terra" },
       })
     : await supabase.auth.admin.createUser({
         email: initialEmail,
-        password: temporaryPassword,
+        password: initialPassword,
         email_confirm: true,
         user_metadata: { name: "Rafael Terra" },
       });
@@ -188,7 +190,11 @@ async function main() {
 
   console.log("Seed concluido.");
   console.log(`Usuario: ${initialEmail}`);
-  console.log(`Senha temporaria: ${temporaryPassword}`);
+  console.log(
+    requestedInitialPassword
+      ? "Senha definida a partir de INITIAL_USER_PASSWORD."
+      : `Senha temporaria: ${initialPassword}`,
+  );
 }
 
 main().catch((error) => {
