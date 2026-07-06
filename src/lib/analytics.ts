@@ -190,10 +190,10 @@ function buildRecommendations(
     recommendations.push({
       id: `topic-${weakTopic.topicId}`,
       title: `Revisar ${topic.title}`,
-      description: `Sua taxa neste topico esta em ${Math.round(
+      description: `Sua taxa neste tópico está em ${Math.round(
         weakTopic.accuracy * 100,
-      )}%. Refaca questoes basicas antes de voltar aos exercicios medios.`,
-      actionLabel: "Praticar topico",
+      )}%. Refaça questões básicas antes de voltar aos exercícios médios.`,
+      actionLabel: "Praticar tópico",
       courseId: topic.courseId,
       topicId: topic.id,
       priority: "alta",
@@ -215,7 +215,7 @@ function buildRecommendations(
     recommendations.push({
       id: `pre-${weakPrerequisite.prerequisiteId}`,
       title: `Voltar para ${prerequisite.title}`,
-      description: `Esse pre-requisito apareceu em erros recentes. Reforce a base antes de insistir nas questoes avancadas.`,
+      description: `Esse pré-requisito apareceu em erros recentes. Reforce a base antes de insistir nas questões avançadas.`,
       actionLabel: "Revisar base",
       courseId: firstTopic.courseId,
       topicId: firstTopic.id,
@@ -232,9 +232,9 @@ function buildRecommendations(
       const topic = getTopic(firstUnanswered.topicId);
       recommendations.push({
         id: `start-${firstUnanswered.id}`,
-        title: topic ? `Comecar por ${topic.title}` : "Comecar pratica",
+        title: topic ? `Começar por ${topic.title}` : "Começar prática",
         description:
-          "Responda algumas questoes para o painel identificar seus pontos fortes e fracos.",
+          "Responda algumas questões para o painel identificar seus pontos fortes e fracos.",
         actionLabel: "Resolver agora",
         courseId: firstUnanswered.courseId,
         topicId: firstUnanswered.topicId,

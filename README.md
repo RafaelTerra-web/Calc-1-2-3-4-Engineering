@@ -1,6 +1,6 @@
-# Calculo em Foco
+# Cálculo em Foco
 
-MVP de estudos para Engenharia UERJ com Supabase Auth, trilhas de Calculo 1-4, pre-requisitos, questoes de multipla escolha, diagnostico por erro e importacao de questoes.
+MVP de estudos para Engenharia UERJ com Supabase Auth, trilhas de Cálculo 1-4, pré-requisitos, questões de múltipla escolha, diagnóstico por erro e importação de questões.
 
 ## Stack
 
@@ -24,7 +24,7 @@ POSTGRES_URL_NON_POOLING=
 POSTGRES_PRISMA_URL=
 POSTGRES_URL=
 
-# Alternativa opcional se voce quiser padronizar em uma URL:
+# Alternativa opcional se você quiser padronizar em uma URL:
 DATABASE_URL=
 ```
 
@@ -42,7 +42,7 @@ A migration SQL principal fica em:
 supabase/migrations/20260706170000_init_calculo_uerj.sql
 ```
 
-Para aplicar a migration no Supabase e popular o conteudo inicial, rode:
+Para aplicar a migration no Supabase e popular o conteúdo inicial, rode:
 
 ```bash
 npm run db:migrate
@@ -51,11 +51,11 @@ npm run db:seed
 
 O seed:
 
-- upserta cursos, topicos, pre-requisitos e questoes autorais iniciais;
-- cria ou atualiza o usuario `rafaelmodiecai@gmail.com`;
-- imprime uma senha temporaria forte no terminal.
+- upserta cursos, tópicos, pré-requisitos e questões autorais iniciais;
+- cria ou atualiza o usuário `rafaelmodiecai@gmail.com`;
+- imprime uma senha temporária forte no terminal.
 
-Nao salve a senha temporaria no repositorio. Troque-a depois pelo painel do Supabase ou por fluxo de recuperacao de senha.
+Não salve a senha temporária no repositório. Troque-a depois pelo painel do Supabase ou por fluxo de recuperação de senha.
 
 ## Rodar localmente
 
@@ -66,20 +66,20 @@ npm run dev
 
 Abra `http://127.0.0.1:3000`.
 
-Se as variaveis Supabase estiverem ausentes, o app mostra uma tela de configuracao em vez de tentar renderizar login mockado.
+Se as variáveis Supabase estiverem ausentes, o app mostra uma tela de configuração em vez de tentar renderizar login mockado.
 
-## Importacao de questoes
+## Importação de questões
 
-A tela `Importacao` aceita JSON ou CSV. CSV minimo:
+A tela `Importação` aceita JSON ou CSV. CSV mínimo:
 
 ```csv
 courseId,topicId,prerequisiteIds,prompt,optionA,optionB,optionC,optionD,correctOptionId,explanation,difficulty,errorType,tags
-calculo-1,limites,pre-fatoracao|pre-produtos-notaveis,"Calcule lim_{x -> 1} (x^2 - 1)/(x - 1).",0,1,2,"Nao existe",c,"Fatore x^2 - 1 = (x - 1)(x + 1) e substitua x = 1.",basico,"Fatoracao em limite","limites|fatoracao"
+calculo-1,limites,pre-fatoracao|pre-produtos-notaveis,"Calcule lim_{x -> 1} (x^2 - 1)/(x - 1).",0,1,2,"Não existe",c,"Fatore x^2 - 1 = (x - 1)(x + 1) e substitua x = 1.",basico,"Fatoração em limite","limites|fatoracao"
 ```
 
-Questoes importadas ficam vinculadas ao usuario autenticado em `imported_questions`.
+Questões importadas ficam vinculadas ao usuário autenticado em `imported_questions`.
 
-## Verificacao
+## Verificação
 
 ```bash
 npm run lint
@@ -90,7 +90,7 @@ npm run build
 
 Fluxo recomendado:
 
-1. Conectar este repositorio ao Vercel.
+1. Conectar este repositório ao Vercel.
 2. Provisionar Supabase pelo Vercel Marketplace.
 3. Garantir que os envs acima existam em Production, Preview e Development.
 4. Abrir PR a partir da branch de feature.

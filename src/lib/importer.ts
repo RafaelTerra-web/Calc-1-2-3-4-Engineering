@@ -52,7 +52,7 @@ function parseJsonQuestions(input: string): ImportResult {
 
     return normalizeRows(rows);
   } catch {
-    return { questions: [], errors: ["JSON invalido. Verifique aspas, virgulas e colchetes."] };
+    return { questions: [], errors: ["JSON inválido. Verifique aspas, vírgulas e colchetes."] };
   }
 }
 
@@ -65,7 +65,7 @@ function parseCsvQuestions(input: string): ImportResult {
   if (lines.length < 2) {
     return {
       questions: [],
-      errors: ["CSV precisa ter cabecalho e pelo menos uma linha de questao."],
+      errors: ["CSV precisa ter cabeçalho e pelo menos uma linha de questão."],
     };
   }
 
@@ -121,7 +121,7 @@ function normalizeRows(rows: unknown[]): ImportResult {
         (option) => option.id === result.data.correctOptionId,
       )
     ) {
-      errors.push(`Linha ${index + 1}: alternativa correta nao existe.`);
+      errors.push(`Linha ${index + 1}: alternativa correta não existe.`);
       return;
     }
 

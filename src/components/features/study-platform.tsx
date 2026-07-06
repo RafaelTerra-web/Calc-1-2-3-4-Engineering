@@ -8,8 +8,8 @@ import {
   CircleAlert,
   ClipboardList,
   Database,
+  ExternalLink,
   FileInput,
-  GraduationCap,
   Home,
   LineChart,
   ListChecks,
@@ -22,6 +22,7 @@ import {
   Settings,
   Target,
   Upload,
+  Video,
   XCircle,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -38,15 +39,19 @@ import {
 } from "@/lib/curriculum";
 import { parseQuestionImport } from "@/lib/importer";
 import { createClient } from "@/lib/supabase/client";
+import { getVideosForQuestion } from "@/lib/videos";
 import type {
   Attempt,
   CourseId,
   Diagnostics,
   Question,
+  QuestionVideos,
   Recommendation,
   StudyUser,
+  VideoResource,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/features/brand-logo";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -118,13 +123,13 @@ const LEGACY_STORAGE_KEYS = [
 const navItems: Array<{ id: ViewId; label: string; icon: typeof Home }> = [
   { id: "dashboard", label: "Dashboard", icon: Home },
   { id: "trilhas", label: "Trilhas", icon: BookOpen },
-  { id: "pre-requisitos", label: "Pre-requisitos", icon: Brain },
-  { id: "pratica", label: "Pratica", icon: ListChecks },
-  { id: "importacao", label: "Importacao", icon: FileInput },
+  { id: "pre-requisitos", label: "Pré-requisitos", icon: Brain },
+  { id: "pratica", label: "Prática", icon: ListChecks },
+  { id: "importacao", label: "Importação", icon: FileInput },
 ];
 
 const importExample = `courseId,topicId,prerequisiteIds,prompt,optionA,optionB,optionC,optionD,correctOptionId,explanation,difficulty,errorType,tags
-calculo-1,limites,pre-fatoracao|pre-produtos-notaveis,"Calcule lim_{x -> 1} (x^2 - 1)/(x - 1).",0,1,2,"Nao existe",c,"Fatore x^2 - 1 = (x - 1)(x + 1) e substitua x = 1.",basico,"Fatoracao em limite","limites|fatoracao"`;
+calculo-1,limites,pre-fatoracao|pre-produtos-notaveis,"Calcule lim_{x -> 1} (x^2 - 1)/(x - 1).",0,1,2,"Não existe",c,"Fatore x^2 - 1 = (x - 1)(x + 1) e substitua x = 1.",basico,"Fatoração em limite","limites|fatoracao"`;
 
 export function StudyPlatform({
   initialUser,
@@ -183,7 +188,7 @@ export function StudyPlatform({
 
       if (attemptResult.error || importResult.error) {
         setStatusMessage(
-          "Nao consegui carregar seus dados do Supabase. Verifique migrations/RLS.",
+          "Não consegui carregar seus dados do Supabase. Verifique migrations/RLS.",
         );
       } else {
         setAttempts((attemptResult.data ?? []).map(rowToAttempt));
@@ -298,7 +303,7 @@ export function StudyPlatform({
     };
 
     if (!supabase) {
-      setStatusMessage("Supabase nao esta configurado. A tentativa nao foi salva.");
+      setStatusMessage("Supabase não está configurado. A tentativa não foi salva.");
       return;
     }
 
@@ -323,7 +328,7 @@ export function StudyPlatform({
       .single();
 
     if (error) {
-      setStatusMessage(`Nao consegui salvar a tentativa: ${error.message}`);
+      setStatusMessage(`Não consegui salvar a tentativa: ${error.message}`);
       return;
     }
 
@@ -355,7 +360,7 @@ export function StudyPlatform({
 
   async function importQuestions(questions: Question[]) {
     if (!user || !supabase) {
-      setStatusMessage("Faca login com Supabase antes de importar questoes.");
+      setStatusMessage("Faça login com Supabase antes de importar questões.");
       return false;
     }
 
@@ -370,12 +375,14 @@ export function StudyPlatform({
       .upsert(rows, { onConflict: "id,user_id" });
 
     if (error) {
-      setStatusMessage(`Nao consegui importar: ${error.message}`);
+      setStatusMessage(`Não consegui importar: ${error.message}`);
       return false;
     }
 
     setImportedQuestions((current) => dedupeQuestions(current, questions));
-    setStatusMessage(`${questions.length} questao(oes) importada(s).`);
+    setStatusMessage(
+      `${questions.length} ${questions.length === 1 ? "questão importada" : "questões importadas"}.`,
+    );
     return true;
   }
 
@@ -390,7 +397,7 @@ export function StudyPlatform({
       .eq("user_id", user.id);
 
     if (error) {
-      setStatusMessage(`Nao consegui limpar importadas: ${error.message}`);
+      setStatusMessage(`Não consegui limpar importadas: ${error.message}`);
       return;
     }
 
@@ -417,7 +424,7 @@ export function StudyPlatform({
               ok: false,
               message:
                 error?.message ??
-                "Nao foi possivel autenticar com as credenciais informadas.",
+                "Não foi possível autenticar com as credenciais informadas.",
             };
           }
 
@@ -556,9 +563,9 @@ function SetupRequiredScreen() {
           <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Settings className="h-5 w-5" aria-hidden="true" />
           </div>
-          <CardTitle>Supabase ainda nao esta configurado</CardTitle>
+          <CardTitle>Supabase ainda não está configurado</CardTitle>
           <CardDescription>
-            Configure o recurso pelo Vercel Marketplace e puxe as variaveis
+            Configure o recurso pelo Vercel Marketplace e puxe as variáveis
             antes de usar o login real.
           </CardDescription>
         </CardHeader>
@@ -633,47 +640,41 @@ function SignInScreen({
 
   return (
     <main className="grid min-h-screen bg-background lg:grid-cols-[1.1fr_0.9fr]">
-      <section className="flex flex-col justify-between gap-10 px-6 py-8 sm:px-10 lg:px-14">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <GraduationCap className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Engenharia UERJ</p>
-            <h1 className="text-xl font-semibold">Calculo em Foco</h1>
-          </div>
-        </div>
+      <section className="relative flex flex-col justify-between gap-10 overflow-hidden px-6 py-8 sm:px-10 lg:px-14">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+        <BrandLogo />
 
         <div className="max-w-2xl space-y-8">
           <div className="space-y-4">
             <Badge className="rounded-md" variant="secondary">
-              Supabase Auth + dashboard real
+              Supabase Auth + diagnóstico real
             </Badge>
             <h2 className="max-w-2xl text-4xl font-semibold leading-tight sm:text-5xl">
-              Entre para acompanhar seus erros em Calculo.
+              Estude Cálculo com diagnóstico, base e prática guiada.
             </h2>
             <p className="max-w-xl text-base leading-7 text-muted-foreground">
-              As tentativas, questoes importadas e recomendacoes passam a ser
-              ligadas ao seu usuario no Supabase, sem depender de mock local.
+              Suas tentativas, questões importadas e recomendações ficam ligadas
+              ao seu usuário no Supabase, com revisão de pré-requisitos quando o
+              erro nasce na base.
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
             <VisualTile
               icon={Target}
-              label="Diagnostico"
+              label="Diagnóstico"
               tone="text-rose-300"
-              value="por usuario"
+              value="por usuário"
             />
             <VisualTile
               icon={Brain}
               label="Base"
               tone="text-emerald-300"
-              value="pre-requisitos"
+              value="pré-requisitos"
             />
             <VisualTile
               icon={LineChart}
-              label="Persistencia"
+              label="Persistência"
               tone="text-sky-300"
               value="Supabase"
             />
@@ -681,7 +682,7 @@ function SignInScreen({
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Usuario inicial planejado:{" "}
+          Usuário inicial planejado:{" "}
           <span className="font-mono text-foreground">{INITIAL_EMAIL}</span>
         </p>
       </section>
@@ -691,7 +692,7 @@ function SignInScreen({
           <CardHeader>
             <CardTitle>Acessar plataforma</CardTitle>
             <CardDescription>
-              Use a senha temporaria criada pelo script de seed do Supabase.
+              Use a senha temporária criada pelo script de seed do Supabase.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -727,7 +728,7 @@ function SignInScreen({
                   type="checkbox"
                 />
                 <span>
-                  Lembre de mim neste navegador. A senha nao sera salva no
+                  Lembre de mim neste navegador. A senha não será salva no
                   localStorage.
                 </span>
               </label>
@@ -769,15 +770,7 @@ function Sidebar({
 }) {
   return (
     <div className="flex h-screen flex-col gap-6 p-5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <GraduationCap className="h-5 w-5" aria-hidden="true" />
-        </div>
-        <div>
-          <p className="text-sm text-muted-foreground">Engenharia UERJ</p>
-          <p className="font-semibold">Calculo em Foco</p>
-        </div>
-      </div>
+      <BrandLogo />
 
       <nav className="space-y-1">
         {navItems.map((item) => (
@@ -796,7 +789,7 @@ function Sidebar({
 
       <Card className="rounded-md">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Saude do estudo</CardTitle>
+          <CardTitle className="text-base">Saúde do estudo</CardTitle>
           <CardDescription>
             {diagnostics.totalAttempts} tentativas registradas
           </CardDescription>
@@ -809,7 +802,7 @@ function Sidebar({
           </div>
           <Separator />
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Topicos fracos</span>
+            <span className="text-muted-foreground">Tópicos fracos</span>
             <Badge variant={diagnostics.weakTopics.length ? "destructive" : "secondary"}>
               {diagnostics.weakTopics.length}
             </Badge>
@@ -867,7 +860,10 @@ function TopBar({
             </SheetTrigger>
             <SheetContent className="w-80" side="left">
               <SheetHeader>
-                <SheetTitle>Calculo em Foco</SheetTitle>
+                <SheetTitle className="flex items-center gap-3 text-left">
+                  <BrandLogo compact />
+                  <span>Cálculo em Foco</span>
+                </SheetTitle>
               </SheetHeader>
               <Sidebar
                 activeView={activeView}
@@ -879,7 +875,7 @@ function TopBar({
             </SheetContent>
           </Sheet>
           <div>
-            <p className="text-sm text-muted-foreground">Area do aluno</p>
+            <p className="text-sm text-muted-foreground">Área do aluno</p>
             <h2 className="text-lg font-semibold">{title}</h2>
           </div>
         </div>
@@ -922,19 +918,19 @@ function DashboardView({
         <MetricCard
           detail="Abaixo de 70% ou 3 erros recentes"
           icon={CircleAlert}
-          label="Topicos fracos"
+          label="Tópicos fracos"
           tone="text-rose-300"
           value={String(diagnostics.weakTopics.length)}
         />
         <MetricCard
-          detail="Por questao respondida"
+          detail="Por questão respondida"
           icon={LineChart}
-          label="Tempo medio"
+          label="Tempo médio"
           tone="text-amber-300"
           value={`${diagnostics.averageTimeSeconds}s`}
         />
         <MetricCard
-          detail="Conteudo base + importadas"
+          detail="Conteúdo base + importadas"
           icon={Database}
           label="Banco ativo"
           tone="text-sky-300"
@@ -947,8 +943,8 @@ function DashboardView({
           <ClipboardList className="h-4 w-4" aria-hidden="true" />
           <AlertTitle>Nenhuma tentativa ainda</AlertTitle>
           <AlertDescription>
-            O dashboard comeca vazio para usuarios novos. Resolva questoes para
-            gerar diagnostico real por topico e pre-requisito.
+            O dashboard começa vazio para usuários novos. Resolva questões para
+            gerar diagnóstico real por tópico e pré-requisito.
           </AlertDescription>
         </Alert>
       )}
@@ -960,7 +956,7 @@ function DashboardView({
               <div>
                 <CardTitle>Progresso por disciplina</CardTitle>
                 <CardDescription>
-                  Cobertura de topicos e taxa de acerto no seu usuario.
+                  Cobertura de tópicos e taxa de acerto no seu usuário.
                 </CardDescription>
               </div>
               <Button onClick={() => onNavigate("trilhas")} size="sm" variant="secondary">
@@ -984,7 +980,7 @@ function DashboardView({
                       <div>
                         <p className="font-medium">{course?.title}</p>
                         <p className="text-sm text-muted-foreground">
-                          {stat.completedTopics}/{stat.totalTopics} topicos iniciados
+                          {stat.completedTopics}/{stat.totalTopics} tópicos iniciados
                         </p>
                       </div>
                     </div>
@@ -1033,7 +1029,7 @@ function TrailsView({
   return (
     <div className="space-y-6">
       <ViewHeader
-        description="Sequencia de estudo por disciplina, com base matematica antes de Calculo."
+        description="Sequência de estudo por disciplina, com base matemática antes de Cálculo."
         icon={BookOpen}
         title="Trilhas"
       />
@@ -1081,7 +1077,7 @@ function TrailsView({
                     <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
                       <Progress value={progress.percent} />
                       <span className="text-sm text-muted-foreground">
-                        {progress.answered}/{progress.total} questoes
+                        {progress.answered}/{progress.total} questões
                       </span>
                     </div>
                   </div>
@@ -1105,9 +1101,9 @@ function PrerequisitesView({
   return (
     <div className="space-y-6">
       <ViewHeader
-        description="Fundamentos que mais aparecem em limites, derivadas, integrais e calculo vetorial."
+        description="Fundamentos que mais aparecem em limites, derivadas, integrais e cálculo vetorial."
         icon={Brain}
-        title="Pre-requisitos"
+        title="Pré-requisitos"
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {prerequisites.map((prerequisite) => {
@@ -1196,9 +1192,9 @@ function PracticeView({
   return (
     <div className="space-y-6">
       <ViewHeader
-        description="Escolha uma disciplina e resolva questoes com feedback e persistencia."
+        description="Escolha uma disciplina e resolva questões com feedback e persistência."
         icon={ListChecks}
-        title="Pratica"
+        title="Prática"
       />
       <Card className="rounded-md">
         <CardContent className="grid gap-4 p-4 md:grid-cols-3">
@@ -1221,7 +1217,7 @@ function PracticeView({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Topico</Label>
+            <Label>Tópico</Label>
             <Select
               value={selectedTopicId}
               onValueChange={(value) => value && onSelectTopic(value)}
@@ -1239,7 +1235,7 @@ function PracticeView({
             </Select>
           </div>
           <div className="rounded-md border border-border p-3">
-            <p className="text-sm text-muted-foreground">Status do topico</p>
+            <p className="text-sm text-muted-foreground">Status do tópico</p>
             <div className="mt-1 flex items-center justify-between">
               <p className="font-medium">
                 {topicStat?.attempts ? percent(topicStat.accuracy) : "sem dados"}
@@ -1254,9 +1250,9 @@ function PracticeView({
       <div className="grid gap-6 xl:grid-cols-[0.34fr_0.66fr]">
         <Card className="rounded-md">
           <CardHeader>
-            <CardTitle className="text-lg">Questoes do topico</CardTitle>
+            <CardTitle className="text-lg">Questões do tópico</CardTitle>
             <CardDescription>
-              {filteredQuestions.length} questoes em {selectedTopic?.title}
+              {filteredQuestions.length} questões em {selectedTopic?.title}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1273,7 +1269,7 @@ function PracticeView({
                     type="button"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">Questao {index + 1}</span>
+                      <span className="font-medium">Questão {index + 1}</span>
                       <Badge className="rounded-md" variant="outline">
                         {question.difficulty}
                       </Badge>
@@ -1285,9 +1281,9 @@ function PracticeView({
                 ))}
                 {filteredQuestions.length === 0 && (
                   <EmptyState
-                    description="Importe questoes ou escolha outro topico para praticar."
+                    description="Importe questões ou escolha outro tópico para praticar."
                     icon={ClipboardList}
-                    title="Nenhuma questao neste topico"
+                    title="Nenhuma questão neste tópico"
                   />
                 )}
               </div>
@@ -1329,9 +1325,9 @@ function QuestionCard({
       <Card className="rounded-md">
         <CardContent className="p-6">
           <EmptyState
-            description="Escolha outro topico ou importe novas questoes."
+            description="Escolha outro tópico ou importe novas questões."
             icon={ClipboardList}
-            title="Sem questao selecionada"
+            title="Sem questão selecionada"
           />
         </CardContent>
       </Card>
@@ -1344,8 +1340,10 @@ function QuestionCard({
     setPending(false);
   }
 
+  const videos = getVideosForQuestion(question);
+
   return (
-    <Card className="rounded-md">
+    <Card className="rounded-md border-primary/15 bg-card/95 shadow-sm">
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
           <Badge className="rounded-md" variant="secondary">
@@ -1428,7 +1426,7 @@ function QuestionCard({
             Confirmar resposta
           </Button>
           <Button disabled={!feedback} onClick={onMoveToNextQuestion} variant="secondary">
-            Proxima questao
+            Próxima questão
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
@@ -1440,8 +1438,127 @@ function QuestionCard({
             </Badge>
           ))}
         </div>
+
+        <QuestionVideosPanel videos={videos} />
       </CardContent>
     </Card>
+  );
+}
+
+function QuestionVideosPanel({ videos }: { videos: QuestionVideos }) {
+  const featured =
+    videos.practice[0] ?? videos.theory[0] ?? videos.prerequisite[0] ?? null;
+
+  return (
+    <section className="space-y-4 rounded-md border border-border bg-muted/20 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.12em] text-[var(--brand-calm)]">
+            <Video className="h-4 w-4" aria-hidden="true" />
+            Vídeos para esta questão
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Curadoria em português para resolver, entender e revisar a base antes
+            de avançar.
+          </p>
+        </div>
+        {featured && (
+          <a
+            className="inline-flex h-7 items-center justify-center gap-1 rounded-md border border-border bg-background px-2.5 text-[0.8rem] font-medium transition hover:bg-muted"
+            href={featured.youtubeUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            Abrir no YouTube
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </a>
+        )}
+      </div>
+
+      {featured && (
+        <div className="overflow-hidden rounded-md border border-border bg-background">
+          <iframe
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            className="aspect-video w-full"
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            src={featured.embedUrl}
+            title={`Vídeo: ${featured.title}`}
+          />
+        </div>
+      )}
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        <VideoPlaylist
+          description="Exercícios resolvidos do assunto da questão."
+          title="Prática e resolução"
+          videos={videos.practice}
+        />
+        <VideoPlaylist
+          description="Explicação conceitual para organizar a teoria."
+          title="Teoria e fundamentos"
+          videos={videos.theory}
+        />
+        <VideoPlaylist
+          description="Álgebra, funções e geometria necessárias antes do tópico."
+          title="Pré-requisitos para entender"
+          videos={videos.prerequisite}
+        />
+      </div>
+    </section>
+  );
+}
+
+function VideoPlaylist({
+  description,
+  title,
+  videos,
+}: {
+  description: string;
+  title: string;
+  videos: VideoResource[];
+}) {
+  return (
+    <div className="rounded-md border border-border bg-background/60 p-3">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">
+        {description}
+      </p>
+      <div className="mt-3 space-y-2">
+        {videos.length > 0 ? (
+          videos.map((video) => (
+            <a
+              className="block rounded-md border border-border/70 p-3 text-sm transition hover:border-primary/60 hover:bg-accent"
+              href={video.youtubeUrl}
+              key={video.id}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <span className="flex items-start justify-between gap-3">
+                <span>
+                  <span className="font-medium leading-5">{video.title}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {video.channel}
+                  </span>
+                </span>
+                <ExternalLink
+                  className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </span>
+              <span className="mt-2 block text-xs leading-5 text-muted-foreground">
+                {video.description}
+              </span>
+            </a>
+          ))
+        ) : (
+          <p className="rounded-md border border-dashed border-border p-3 text-xs leading-5 text-muted-foreground">
+            Sem vídeo curado para este grupo ainda.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1480,16 +1597,16 @@ function ImportView({
   return (
     <div className="space-y-6">
       <ViewHeader
-        description="Cole CSV ou JSON para expandir o banco do seu usuario."
+        description="Cole CSV ou JSON para expandir o banco do seu usuário."
         icon={Upload}
-        title="Importacao de questoes"
+        title="Importação de questões"
       />
       <div className="grid gap-6 xl:grid-cols-[0.65fr_0.35fr]">
         <Card className="rounded-md">
           <CardHeader>
             <CardTitle>Entrada CSV/JSON</CardTitle>
             <CardDescription>
-              As questoes importadas ficam vinculadas ao usuario autenticado.
+              As questões importadas ficam vinculadas ao usuário autenticado.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1521,10 +1638,10 @@ function ImportView({
         <Card className="rounded-md">
           <CardHeader>
             <CardTitle>Status</CardTitle>
-            <CardDescription>Resultado da validacao e importacao.</CardDescription>
+            <CardDescription>Resultado da validação e importação.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <MetricInline label="Validas no texto" value={String(previewCount)} />
+            <MetricInline label="Válidas no texto" value={String(previewCount)} />
             <MetricInline
               label="Importadas ativas"
               value={String(importedQuestions.length)}
@@ -1560,7 +1677,7 @@ function RecommendationsPanel({
   return (
     <Card className="rounded-md">
       <CardHeader>
-        <CardTitle>Proximas recomendacoes</CardTitle>
+        <CardTitle>Próximas recomendações</CardTitle>
         <CardDescription>Calculadas com base nas tentativas salvas.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -1621,14 +1738,14 @@ function WeakTopicsPanel({
     <Card className="rounded-md">
       <CardHeader>
         <CardTitle>Onde melhorar</CardTitle>
-        <CardDescription>Topicos abaixo de 70% ou com erros recentes.</CardDescription>
+        <CardDescription>Tópicos abaixo de 70% ou com erros recentes.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {diagnostics.weakTopics.length === 0 && (
           <EmptyState
-            description="Continue resolvendo questoes para gerar sinais confiaveis."
+            description="Continue resolvendo questões para gerar sinais confiáveis."
             icon={CheckCircle2}
-            title="Nenhum topico fraco ainda"
+            title="Nenhum tópico fraco ainda"
           />
         )}
         {diagnostics.weakTopics.slice(0, 5).map((stat) => (
@@ -1649,7 +1766,7 @@ function WeakTopicsPanel({
               size="sm"
               variant="secondary"
             >
-              Refazer questoes
+              Refazer questões
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
@@ -1670,12 +1787,12 @@ function RecentMistakesPanel({
     <Card className="rounded-md">
       <CardHeader>
         <CardTitle>Erros recentes</CardTitle>
-        <CardDescription>Erros reais do usuario autenticado.</CardDescription>
+        <CardDescription>Erros reais do usuário autenticado.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {attempts.length === 0 && (
           <EmptyState
-            description="Quando voce errar, a questao aparecera aqui."
+            description="Quando você errar, a questão aparecerá aqui."
             icon={CheckCircle2}
             title="Sem erros recentes"
           />

@@ -7,6 +7,8 @@ export type CourseId =
 
 export type Difficulty = "basico" | "medio" | "avancado";
 
+export type VideoKind = "practice" | "theory" | "prerequisite";
+
 export type Course = {
   id: CourseId;
   title: string;
@@ -49,6 +51,24 @@ export type Question = {
   difficulty: Difficulty;
   errorType: string;
   tags: string[];
+};
+
+export type VideoResource = {
+  id: string;
+  kind: VideoKind;
+  title: string;
+  channel: string;
+  description: string;
+  youtubeUrl: string;
+  embedUrl: string;
+  topicIds?: string[];
+  prerequisiteIds?: string[];
+};
+
+export type QuestionVideos = {
+  practice: VideoResource[];
+  theory: VideoResource[];
+  prerequisite: VideoResource[];
 };
 
 export type Attempt = {

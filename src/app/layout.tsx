@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Calculo em Foco | Engenharia UERJ",
+  title: "Cálculo em Foco | Engenharia UERJ",
   description:
-    "MVP de estudos para Calculo 1, 2, 3 e 4 com questoes, pre-requisitos e dashboard de diagnostico.",
+    "MVP de estudos para Cálculo 1, 2, 3 e 4 com questões, pré-requisitos e dashboard de diagnóstico.",
 };
 
 export default function RootLayout({
