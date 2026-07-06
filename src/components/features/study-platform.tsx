@@ -2,6 +2,7 @@
 
 import {
   ArrowRight,
+  Bell,
   BookOpen,
   Brain,
   CalendarDays,
@@ -32,11 +33,13 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { buildDiagnostics, getQuestionProgress } from "@/lib/analytics";
 import {
+  buildAssessmentNotifications,
   buildOfficialExamStats,
   calculateTimeLimitSeconds,
   DEFAULT_DIFFICULTY_TIME_MINUTES,
   DEFAULT_REFERENCE_DATE,
   describeAssessmentScope,
+  formatAssessmentDueDate,
   formatAssessmentWindow,
   getAssessmentStatusLabel,
   officialAssessments as defaultOfficialAssessments,
@@ -55,6 +58,7 @@ import { parseQuestionImport } from "@/lib/importer";
 import { createClient } from "@/lib/supabase/client";
 import { getVideosForQuestion, videoResources } from "@/lib/videos";
 import type {
+  AssessmentNotification,
   Attempt,
   CourseId,
   Diagnostics,
@@ -349,6 +353,11 @@ export function StudyPlatform({
 
   const examStats = useMemo(
     () => buildOfficialExamStats(assessments, examAttempts, referenceDate),
+    [assessments, examAttempts, referenceDate],
+  );
+  const assessmentNotifications = useMemo(
+    () =>
+      buildAssessmentNotifications(assessments, examAttempts, referenceDate),
     [assessments, examAttempts, referenceDate],
   );
 
@@ -848,6 +857,7 @@ export function StudyPlatform({
         <aside className="hidden w-72 border-r border-border bg-card/40 lg:block">
           <Sidebar
             activeView={activeView}
+            assessmentNotifications={assessmentNotifications}
             diagnostics={diagnostics}
             examStats={examStats}
             user={user}
@@ -859,6 +869,7 @@ export function StudyPlatform({
         <main className="flex min-w-0 flex-1 flex-col">
           <TopBar
             activeView={activeView}
+            assessmentNotifications={assessmentNotifications}
             diagnostics={diagnostics}
             examStats={examStats}
             user={user}
@@ -885,6 +896,7 @@ export function StudyPlatform({
               <DashboardView
                 attempts={attempts}
                 assessments={assessments}
+                assessmentNotifications={assessmentNotifications}
                 diagnostics={diagnostics}
                 examStats={examStats}
                 onNavigate={setActiveView}
@@ -948,6 +960,7 @@ export function StudyPlatform({
                 activeSession={activeExamSession}
                 assessments={assessments}
                 attempts={examAttempts}
+                notifications={assessmentNotifications}
                 onCancelSession={() => setActiveExamSession(null)}
                 onSelectAnswer={selectExamAnswer}
                 onStartExam={startExam}
@@ -1184,6 +1197,7 @@ function SignInScreen({
 
 function Sidebar({
   activeView,
+  assessmentNotifications,
   diagnostics,
   examStats,
   onLogout,
@@ -1191,6 +1205,7 @@ function Sidebar({
   user,
 }: {
   activeView: ViewId;
+  assessmentNotifications: AssessmentNotification[];
   diagnostics: Diagnostics;
   examStats: OfficialExamStats;
   onLogout: () => void;
@@ -1239,6 +1254,20 @@ function Sidebar({
         </CardContent>
       </Card>
 
+      {assessmentNotifications.length > 0 && (
+        <Card className="rounded-md border-amber-500/30 bg-amber-500/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Bell className="h-4 w-4 text-amber-300" aria-hidden="true" />
+              Próximo prazo
+            </CardTitle>
+            <CardDescription>
+              {assessmentNotifications[0]?.message}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
       <div className="mt-auto flex items-center gap-3 rounded-md border border-border p-3">
         <Avatar className="h-9 w-9">
           <AvatarFallback>{initials(user.name || user.email)}</AvatarFallback>
@@ -1257,6 +1286,7 @@ function Sidebar({
 
 function TopBar({
   activeView,
+  assessmentNotifications,
   diagnostics,
   examStats,
   onLogout,
@@ -1264,6 +1294,7 @@ function TopBar({
   user,
 }: {
   activeView: ViewId;
+  assessmentNotifications: AssessmentNotification[];
   diagnostics: Diagnostics;
   examStats: OfficialExamStats;
   onLogout: () => void;
@@ -1298,6 +1329,7 @@ function TopBar({
               </SheetHeader>
               <Sidebar
                 activeView={activeView}
+                assessmentNotifications={assessmentNotifications}
                 diagnostics={diagnostics}
                 examStats={examStats}
                 onLogout={onLogout}
@@ -1312,6 +1344,17 @@ function TopBar({
           </div>
         </div>
         <div className="hidden items-center gap-2 sm:flex">
+          {assessmentNotifications.length > 0 && (
+            <Button
+              className="max-w-xs justify-start gap-2 overflow-hidden"
+              onClick={() => onNavigate("provas")}
+              size="sm"
+              variant="secondary"
+            >
+              <Bell className="h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
+              <span className="truncate">{assessmentNotifications[0]?.message}</span>
+            </Button>
+          )}
           <Badge className="rounded-md" variant="secondary">
             {examStats.submittedAttempts.length} provas
           </Badge>
@@ -1327,6 +1370,7 @@ function TopBar({
 function DashboardView({
   attempts,
   assessments,
+  assessmentNotifications,
   diagnostics,
   examStats,
   onNavigate,
@@ -1337,6 +1381,7 @@ function DashboardView({
 }: {
   attempts: Attempt[];
   assessments: OfficialAssessment[];
+  assessmentNotifications: AssessmentNotification[];
   diagnostics: Diagnostics;
   examStats: OfficialExamStats;
   onNavigate: (view: ViewId) => void;
@@ -1354,6 +1399,12 @@ function DashboardView({
         description="Seu painel separa estudo livre de desempenho oficial. Treinos ajudam a revisar; provas oficiais alimentam notas e diagnóstico."
         icon={Home}
         title="Hoje"
+      />
+
+      <AssessmentNotificationsPanel
+        assessments={assessments}
+        notifications={assessmentNotifications}
+        onStartExam={onStartExam}
       />
 
       {nextAssessment && (
@@ -1585,6 +1636,104 @@ function DashboardView({
         </Card>
       </div>
     </div>
+  );
+}
+
+function AssessmentNotificationsPanel({
+  assessments,
+  notifications,
+  onStartExam,
+}: {
+  assessments: OfficialAssessment[];
+  notifications: AssessmentNotification[];
+  onStartExam: (assessment: OfficialAssessment) => void;
+}) {
+  if (notifications.length === 0) {
+    return (
+      <Alert className="rounded-md border-emerald-500/30">
+        <CheckCircle2 className="h-4 w-4 text-emerald-300" aria-hidden="true" />
+        <AlertTitle>Sem prazos pendentes</AlertTitle>
+        <AlertDescription>
+          Você não tem provas oficiais pendentes no momento.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <Card className="rounded-md border-amber-500/25 bg-amber-500/5">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-amber-300" aria-hidden="true" />
+              Notificações de prova
+            </CardTitle>
+            <CardDescription>
+              Avisos automáticos calculados pela agenda oficial.
+            </CardDescription>
+          </div>
+          <Badge className="rounded-md" variant="secondary">
+            {notifications.length} pendentes
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-3 lg:grid-cols-2">
+        {notifications.slice(0, 4).map((notification) => {
+          const assessment = assessments.find(
+            (item) => item.id === notification.assessmentId,
+          );
+
+          return (
+            <div
+              className={cn(
+                "rounded-md border p-4",
+                notification.tone === "danger" &&
+                  "border-rose-500/40 bg-rose-500/10",
+                notification.tone === "warning" &&
+                  "border-amber-500/40 bg-amber-500/10",
+                notification.tone === "info" &&
+                  "border-border bg-background/65",
+              )}
+              key={notification.id}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{notification.message}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Prazo:{" "}
+                    {assessment
+                      ? formatAssessmentDueDate(assessment)
+                      : new Date(notification.dueAt).toLocaleDateString("pt-BR")}
+                  </p>
+                </div>
+                <Badge
+                  className="rounded-md"
+                  variant={notification.tone === "danger" ? "destructive" : "outline"}
+                >
+                  {notification.daysUntilDue < 0
+                    ? "atrasada"
+                    : notification.daysUntilDue === 0
+                      ? "hoje"
+                      : `${notification.daysUntilDue}d`}
+                </Badge>
+              </div>
+              {assessment && (
+                <Button
+                  className="mt-4 w-full"
+                  onClick={() => onStartExam(assessment)}
+                  size="sm"
+                  variant="secondary"
+                >
+                  Abrir prova
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -2203,6 +2352,7 @@ function ExamsView({
   activeSession,
   assessments,
   attempts,
+  notifications,
   onCancelSession,
   onSelectAnswer,
   onStartExam,
@@ -2212,6 +2362,7 @@ function ExamsView({
   activeSession: ExamSession | null;
   assessments: OfficialAssessment[];
   attempts: ExamAttempt[];
+  notifications: AssessmentNotification[];
   onCancelSession: () => void;
   onSelectAnswer: (questionId: string, optionId: string) => void;
   onStartExam: (assessment: OfficialAssessment) => void;
@@ -2238,6 +2389,17 @@ function ExamsView({
         icon={GraduationCap}
         title="Provas oficiais"
       />
+
+      {notifications.length > 0 && (
+        <Alert className="rounded-md border-amber-500/35">
+          <Bell className="h-4 w-4 text-amber-300" aria-hidden="true" />
+          <AlertTitle>{notifications[0]?.message}</AlertTitle>
+          <AlertDescription>
+            O prazo mais próximo fica destacado; os cards abaixo mostram todas as
+            provas disponíveis, programadas ou atrasadas.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard

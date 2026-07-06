@@ -1,5 +1,6 @@
 import { getTopic } from "@/lib/curriculum";
 import type {
+  AssessmentNotification,
   Difficulty,
   DifficultyTimeSettings,
   ExamAttempt,
@@ -282,6 +283,55 @@ export function getAssessmentStatusLabel(
   return "disponível";
 }
 
+export function buildAssessmentNotifications(
+  assessments: OfficialAssessment[],
+  attempts: ExamAttempt[],
+  referenceDate = DEFAULT_REFERENCE_DATE,
+): AssessmentNotification[] {
+  const completedAssessmentIds = new Set(
+    attempts
+      .filter(
+        (attempt) =>
+          attempt.status === "submitted" ||
+          attempt.status === "late" ||
+          attempt.status === "expired",
+      )
+      .map((attempt) => attempt.assessmentId),
+  );
+
+  return assessments
+    .filter((assessment) => !completedAssessmentIds.has(assessment.id))
+    .map((assessment) => {
+      const daysUntilDue = getCalendarDayDistance(referenceDate, assessment.dueAt);
+      const status = getAssessmentStatusLabel(assessment, attempts, referenceDate);
+      const tone: AssessmentNotification["tone"] =
+        status === "expirada" || status === "atrasada"
+          ? "danger"
+          : daysUntilDue <= 1
+            ? "warning"
+            : "info";
+
+      return {
+        id: `assessment-notification-${assessment.id}`,
+        assessmentId: assessment.id,
+        title: assessment.title,
+        message: buildAssessmentNotificationMessage(
+          assessment,
+          daysUntilDue,
+          status,
+        ),
+        daysUntilDue,
+        dueAt: assessment.dueAt,
+        tone,
+      };
+    })
+    .sort(
+      (left, right) =>
+        left.daysUntilDue - right.daysUntilDue ||
+        new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime(),
+    );
+}
+
 export function formatAssessmentWindow(assessment: OfficialAssessment) {
   const formatter = new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -294,6 +344,16 @@ export function formatAssessmentWindow(assessment: OfficialAssessment) {
   return `${formatter.format(new Date(assessment.availableAt))} até ${formatter.format(
     new Date(assessment.dueAt),
   )}`;
+}
+
+export function formatAssessmentDueDate(assessment: OfficialAssessment) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(assessment.dueAt));
 }
 
 export function describeAssessmentScope(assessment: OfficialAssessment) {
@@ -321,6 +381,51 @@ function takeQuestions(
   );
 
   return [...fresh, ...repeated].slice(0, amount);
+}
+
+function buildAssessmentNotificationMessage(
+  assessment: OfficialAssessment,
+  daysUntilDue: number,
+  status: string,
+) {
+  if (status === "expirada") {
+    return `A ${assessment.title} expirou.`;
+  }
+
+  if (status === "atrasada") {
+    const daysLate = Math.abs(daysUntilDue);
+    return daysLate <= 1
+      ? `A ${assessment.title} está atrasada desde ontem.`
+      : `A ${assessment.title} está atrasada há ${daysLate} dias.`;
+  }
+
+  if (daysUntilDue <= 0) {
+    return `A ${assessment.title} vence hoje.`;
+  }
+
+  if (daysUntilDue === 1) {
+    return `Falta 1 dia para a ${assessment.title}.`;
+  }
+
+  return `Faltam ${daysUntilDue} dias para a ${assessment.title}.`;
+}
+
+function getCalendarDayDistance(referenceDate: string, targetDate: string) {
+  const dayInMs = 24 * 60 * 60 * 1000;
+  const reference = new Date(referenceDate);
+  const target = new Date(targetDate);
+  const referenceDay = new Date(
+    reference.getFullYear(),
+    reference.getMonth(),
+    reference.getDate(),
+  ).getTime();
+  const targetDay = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate(),
+  ).getTime();
+
+  return Math.round((targetDay - referenceDay) / dayInMs);
 }
 
 function shuffleQuestions(questions: Question[]) {

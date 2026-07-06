@@ -17,6 +17,8 @@ export type DeadlinePolicy = "expire" | "late" | "available";
 
 export type ExamAttemptStatus = "in_progress" | "submitted" | "expired" | "late";
 
+export type AssessmentNotificationTone = "info" | "warning" | "danger";
+
 export type Course = {
   id: CourseId;
   title: string;
@@ -172,6 +174,16 @@ export type OfficialExamStats = {
   totalAssessments: number;
   nextAssessment: OfficialAssessment | null;
   overdueAssessments: OfficialAssessment[];
+};
+
+export type AssessmentNotification = {
+  id: string;
+  assessmentId: string;
+  title: string;
+  message: string;
+  daysUntilDue: number;
+  dueAt: string;
+  tone: AssessmentNotificationTone;
 };
 
 export type CourseStats = {
