@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Calculo em Foco">
+  <rect x="40" y="40" width="432" height="432" rx="88" fill="#062f3c"/>
+  <g stroke="#0f5262" stroke-width="2" opacity=".75">
+    <path d="M96 136h320M96 216h320M96 296h320M96 376h320M136 96v320M216 96v320M296 96v320M376 96v320"/>
+    <path d="M136 136l56-56M376 136l-56-56M136 376l56 56M376 376l-56 56"/>
+  </g>
+  <path d="M104 312h304" stroke="#69d7c8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M200 112c-54 52-82 113-84 183-2 64 23 111 70 141" fill="none" stroke="#ff7b63" stroke-width="16" stroke-linecap="round"/>
+  <path d="M96 360c70-2 91-118 153-116 42 2 54 55 105 56 29 1 51-13 70-35" fill="none" stroke="#e9fbff" stroke-width="9" stroke-linecap="round"/>
+  <path d="M252 128c49 0 44 56 6 56-25 0-39 16-45 49l-30 164c-8 44-33 65-72 65" fill="none" stroke="#f8fbfc" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <g stroke="#f8fbfc" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M286 405 336 194l52 211"/>
+    <circle cx="336" cy="216" r="28" fill="#062f3c"/>
+  </g>
+  <path d="M314 382h108" stroke="#69d7c8" stroke-width="10" stroke-linecap="round"/>
+  <path d="M344 164a142 142 0 0 1 68 195" fill="none" stroke="#69d7c8" stroke-width="10" stroke-linecap="round"/>
+  <g stroke="#69d7c8" stroke-width="5" stroke-linecap="round">
+    <path d="M415 211l-15 8M429 250h-18M418 292l-16-6M392 332l-12-14"/>
+  </g>
+  <circle cx="96" cy="360" r="12" fill="#69d7c8"/>
+  <circle cx="424" cy="264" r="12" fill="#ff7b63"/>
+</svg>

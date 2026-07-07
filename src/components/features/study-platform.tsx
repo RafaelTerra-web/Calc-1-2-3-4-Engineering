@@ -24,10 +24,8 @@ import {
   Palette,
   Play,
   RotateCcw,
-  Route,
   SearchCheck,
   Settings,
-  ShieldCheck,
   Sparkles,
   Sun,
   Target,
@@ -210,15 +208,23 @@ const LEGACY_STORAGE_KEYS = [
   "calculo-uerj:imported-questions",
 ];
 
-const navItems: Array<{ id: ViewId; label: string; icon: typeof Home }> = [
-  { id: "dashboard", label: "Hoje", icon: Sparkles },
-  { id: "trilhas", label: "Trilhas", icon: Route },
-  { id: "pre-requisitos", label: "Pré-requisitos", icon: Brain },
-  { id: "pratica", label: "Prática", icon: Calculator },
-  { id: "provas", label: "Provas", icon: Trophy },
-  { id: "playlists", label: "Playlists", icon: Film },
-  { id: "importacao", label: "Importação", icon: Database },
-  { id: "admin", label: "Admin", icon: ShieldCheck },
+const navItems: Array<{ id: ViewId; label: string; iconSrc: string }> = [
+  { id: "dashboard", label: "Hoje", iconSrc: "/icons/nav-dashboard.svg" },
+  { id: "trilhas", label: "Trilhas", iconSrc: "/icons/nav-trilhas.svg" },
+  {
+    id: "pre-requisitos",
+    label: "Pré-requisitos",
+    iconSrc: "/icons/nav-pre-requisitos.svg",
+  },
+  { id: "pratica", label: "Prática", iconSrc: "/icons/nav-pratica.svg" },
+  { id: "provas", label: "Provas", iconSrc: "/icons/nav-provas.svg" },
+  { id: "playlists", label: "Playlists", iconSrc: "/icons/nav-playlists.svg" },
+  {
+    id: "importacao",
+    label: "Importação",
+    iconSrc: "/icons/nav-importacao.svg",
+  },
+  { id: "admin", label: "Admin", iconSrc: "/icons/nav-admin.svg" },
 ];
 
 const importExample = `courseId,topicId,prerequisiteIds,prompt,optionA,optionB,optionC,optionD,correctOptionId,explanation,difficulty,errorType,tags
@@ -1271,6 +1277,25 @@ function ThemeToggleButton({
   );
 }
 
+function IconImage({
+  className,
+  src,
+}: {
+  className?: string;
+  src: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("inline-block shrink-0 bg-current", className)}
+      style={{
+        WebkitMask: `url(${src}) center / contain no-repeat`,
+        mask: `url(${src}) center / contain no-repeat`,
+      }}
+    />
+  );
+}
+
 function Sidebar({
   activeView,
   assessmentNotifications,
@@ -1305,7 +1330,7 @@ function Sidebar({
             size="sm"
             variant={activeView === item.id ? "secondary" : "ghost"}
           >
-            <item.icon className="h-4 w-4" aria-hidden="true" />
+            <IconImage className="h-4 w-4" src={item.iconSrc} />
             {item.label}
           </Button>
         ))}
@@ -3263,14 +3288,14 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
     accent: string;
     description: string;
     focus: string;
-    icon: typeof Video;
+    iconSrc: string;
     kind: VideoResource["kind"];
     title: string;
   }> = [
     {
       accent: "border-l-coral/80",
       focus: "Treino guiado",
-      icon: Play,
+      iconSrc: "/icons/playlist-practice.svg",
       kind: "practice",
       title: "Prática e resolução",
       description: "Vídeos de exercícios resolvidos conectados às questões do app.",
@@ -3278,7 +3303,7 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
     {
       accent: "border-l-sky-400/80",
       focus: "Conceito antes da conta",
-      icon: BookOpen,
+      iconSrc: "/icons/playlist-theory.svg",
       kind: "theory",
       title: "Teoria e fundamentos",
       description: "Aulas conceituais para entender o assunto antes de praticar.",
@@ -3286,7 +3311,7 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
     {
       accent: "border-l-emerald-400/80",
       focus: "Base matemática",
-      icon: Brain,
+      iconSrc: "/icons/playlist-prerequisite.svg",
       kind: "prerequisite",
       title: "Pré-requisitos para entender",
       description: "Base de álgebra, funções, trigonometria e geometria analítica.",
@@ -3305,7 +3330,6 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
         {groups.map((group) => {
           const videos = getPlaylistVideos(group.kind);
           const featuredVideo = videos[0];
-          const Icon = group.icon;
           const totalViews = videos.reduce(
             (total, video) => total + (video.viewCount ?? 0),
             0,
@@ -3328,7 +3352,7 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
-                      <Icon className="size-5" aria-hidden="true" />
+                      <IconImage className="size-5" src={group.iconSrc} />
                     </span>
                     <div>
                       <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">

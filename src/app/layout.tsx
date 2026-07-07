@@ -19,6 +19,7 @@ export const metadata: Metadata = {
     "MVP de estudos para Cálculo 1, 2, 3 e 4 com questões, pré-requisitos e dashboard de diagnóstico.",
   icons: {
     icon: [
+      { url: "/icons/brand-mark.svg", type: "image/svg+xml" },
       { url: "/favicon.ico", sizes: "any" },
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },

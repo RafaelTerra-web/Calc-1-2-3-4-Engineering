@@ -14,7 +14,7 @@ export function BrandLogo({
         <Image
           alt=""
           aria-hidden="true"
-          className="h-full w-full object-cover"
+          className="h-full w-full object-contain"
           height={88}
           priority
           sizes="44px"
