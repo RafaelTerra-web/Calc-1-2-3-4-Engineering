@@ -3,7 +3,6 @@
 import {
   ArrowRight,
   Bell,
-  BookOpen,
   Brain,
   CalendarDays,
   Calculator,
@@ -1653,7 +1652,7 @@ function DashboardView({
     <div className="space-y-6">
       <ViewHeader
         description="Seu painel separa estudo livre de desempenho oficial. Treinos ajudam a revisar; provas oficiais alimentam notas e diagnóstico."
-        icon={Home}
+        iconSrc="/icons/nav-dashboard.svg"
         title="Hoje"
       />
 
@@ -2206,7 +2205,7 @@ function TrailsView({
     <div className="space-y-6">
       <ViewHeader
         description="Sequência de estudo por disciplina, com base matemática antes de Cálculo."
-        icon={BookOpen}
+        iconSrc="/icons/nav-trilhas.svg"
         title="Trilhas"
       />
       <div className="grid gap-6 xl:grid-cols-2">
@@ -2278,7 +2277,7 @@ function PrerequisitesView({
     <div className="space-y-6">
       <ViewHeader
         description="Fundamentos que mais aparecem em limites, derivadas, integrais e cálculo vetorial."
-        icon={Brain}
+        iconSrc="/icons/nav-pre-requisitos.svg"
         title="Pré-requisitos"
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -2375,7 +2374,7 @@ function PracticeView({
     <div className="space-y-6">
       <ViewHeader
         description="Escolha uma disciplina e treine sem pressão. Os erros deste treino não entram no dashboard oficial."
-        icon={ListChecks}
+        iconSrc="/icons/nav-pratica.svg"
         title="Prática"
       />
       <Card className="rounded-md">
@@ -2840,7 +2839,7 @@ function ExamsView({
     <div className="space-y-6">
       <ViewHeader
         description="Avaliações oficiais com sorteio de questões, tempo calculado por dificuldade e resultado salvo no Supabase."
-        icon={GraduationCap}
+        iconSrc="/icons/nav-provas.svg"
         title="Provas oficiais"
       />
 
@@ -3099,7 +3098,7 @@ function AdminView({
       <div className="space-y-6">
         <ViewHeader
           description="Configurações administrativas ficam disponíveis apenas para perfis admin."
-          icon={Settings}
+          iconSrc="/icons/nav-admin.svg"
           title="Admin"
         />
         <Alert className="rounded-md" variant="destructive">
@@ -3117,7 +3116,7 @@ function AdminView({
     <div className="space-y-6">
       <ViewHeader
         description="Controle datas de prova, nota mínima, número de tentativas e quantidade de questões."
-        icon={Settings}
+        iconSrc="/icons/nav-admin.svg"
         title="Admin"
       />
 
@@ -3322,7 +3321,7 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
     <div className="space-y-6">
       <ViewHeader
         description="Três playlists internas curadas por questão, com vídeos individuais ordenados por relação direta, atualidade e visualizações."
-        icon={Video}
+        iconSrc="/icons/nav-playlists.svg"
         title="Playlists"
       />
 
@@ -3610,7 +3609,7 @@ function ImportView({
     <div className="space-y-6">
       <ViewHeader
         description="Cole CSV ou JSON para expandir seu banco de questões."
-        icon={Upload}
+        iconSrc="/icons/nav-importacao.svg"
         title="Importação de questões"
       />
       <div className="grid gap-6 xl:grid-cols-[0.65fr_0.35fr]">
@@ -3882,16 +3881,22 @@ function MetricInline({ label, value }: { label: string; value: string }) {
 function ViewHeader({
   description,
   icon: Icon,
+  iconSrc,
   title,
 }: {
   description: string;
-  icon: typeof Home;
+  icon?: typeof Home;
+  iconSrc?: string;
   title: string;
 }) {
   return (
     <div className="flex items-start gap-4">
       <div className="rounded-md bg-primary p-3 text-primary-foreground">
-        <Icon className="h-5 w-5" aria-hidden="true" />
+        {iconSrc ? (
+          <IconImage className="h-5 w-5" src={iconSrc} />
+        ) : Icon ? (
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        ) : null}
       </div>
       <div>
         <h1 className="text-2xl font-semibold">{title}</h1>
