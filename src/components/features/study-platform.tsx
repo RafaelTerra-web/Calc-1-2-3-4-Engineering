@@ -64,7 +64,11 @@ import {
 } from "@/lib/curriculum";
 import { parseQuestionImport } from "@/lib/importer";
 import { createClient } from "@/lib/supabase/client";
-import { getVideosForQuestion, videoResources } from "@/lib/videos";
+import {
+  getVideosForQuestion,
+  internalPlaylistUrls,
+  videoResources,
+} from "@/lib/videos";
 import type {
   AssessmentNotification,
   Attempt,
@@ -3309,6 +3313,7 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
           const relatedQuestionCount = new Set(
             videos.flatMap((video) => video.questionIds ?? []),
           ).size;
+          const playlistUrl = internalPlaylistUrls[group.kind];
 
           return (
             <Card
@@ -3339,6 +3344,15 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
                 <CardDescription className="leading-6">
                   {group.description}
                 </CardDescription>
+                <a
+                  className="inline-flex w-fit items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium transition hover:bg-muted"
+                  href={playlistUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  Abrir playlist no YouTube
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                </a>
               </CardHeader>
 
               <CardContent className="flex flex-1 flex-col gap-4">
@@ -3485,9 +3499,20 @@ function PlaylistLibraryItem({
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-        <span className="rounded-md bg-muted px-2 py-1">
-          Playlist: {video.sourcePlaylistTitle}
-        </span>
+        {video.sourcePlaylistUrl ? (
+          <a
+            className="rounded-md bg-muted px-2 py-1 transition hover:text-foreground"
+            href={video.sourcePlaylistUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            Playlist: {video.sourcePlaylistTitle}
+          </a>
+        ) : (
+          <span className="rounded-md bg-muted px-2 py-1">
+            Playlist: {video.sourcePlaylistTitle}
+          </span>
+        )}
         {video.viewCount && (
           <span className="rounded-md bg-muted px-2 py-1">
             {formatViews(video.viewCount)} visualizações

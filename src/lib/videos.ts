@@ -6,6 +6,12 @@ const playlistTitles: Record<VideoKind, string> = {
   prerequisite: "Pré-requisitos para entender",
 };
 
+export const internalPlaylistUrls: Record<VideoKind, string> = {
+  practice: "https://www.youtube.com/playlist?list=PLJzR3TulxvF8",
+  theory: "https://www.youtube.com/playlist?list=PLYuDU_kPHyDc",
+  prerequisite: "https://www.youtube.com/playlist?list=PLS24fRWWgXUc",
+};
+
 type VideoInput = Omit<
   VideoResource,
   "embedUrl" | "id" | "sourcePlaylistTitle" | "youtubeUrl"
@@ -19,6 +25,7 @@ function video(input: VideoInput): VideoResource {
     embedUrl: `https://www.youtube-nocookie.com/embed/${input.videoId}`,
     id: `${input.kind}-${input.videoId}`,
     sourcePlaylistTitle: playlistTitles[input.kind],
+    sourcePlaylistUrl: internalPlaylistUrls[input.kind],
     youtubeUrl: `https://www.youtube.com/watch?v=${input.videoId}`,
   };
 }
