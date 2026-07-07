@@ -95,13 +95,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -1476,24 +1469,24 @@ function NotificationBellMenu({
   notifications: AssessmentNotification[];
   onNavigate: (view: ViewId) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const notificationCount = notifications.length;
   const hasNotifications = notificationCount > 0;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label={
-              hasNotifications
-                ? `Abrir notificações: ${notificationCount} pendentes`
-                : "Abrir notificações"
-            }
-            className="relative"
-            size="icon"
-            variant={hasNotifications ? "secondary" : "outline"}
-          />
+    <div className="relative">
+      <Button
+        aria-expanded={open}
+        aria-label={
+          hasNotifications
+            ? `Abrir notificações: ${notificationCount} pendentes`
+            : "Abrir notificações"
         }
+        className="relative"
+        onClick={() => setOpen((current) => !current)}
+        size="icon"
+        type="button"
+        variant={hasNotifications ? "secondary" : "outline"}
       >
         <Bell
           className={cn(
@@ -1507,18 +1500,16 @@ function NotificationBellMenu({
             {notificationCount > 9 ? "9+" : notificationCount}
           </span>
         )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-[min(23rem,calc(100vw-2rem))] rounded-md p-0"
-        sideOffset={8}
-      >
-        <div className="space-y-3 p-4">
+      </Button>
+
+      {open && (
+        <div className="absolute right-0 top-11 z-50 w-[min(23rem,calc(100vw-2rem))] rounded-md border border-border bg-popover p-4 text-popover-foreground shadow-lg ring-1 ring-foreground/10">
+          <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <DropdownMenuLabel className="px-0 py-0 text-sm font-semibold text-foreground">
+              <p className="text-sm font-semibold text-foreground">
                 Notificações
-              </DropdownMenuLabel>
+              </p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 Prazos e avisos calculados pela agenda de provas.
               </p>
@@ -1528,7 +1519,7 @@ function NotificationBellMenu({
             </Badge>
           </div>
 
-          <DropdownMenuSeparator className="mx-0" />
+          <Separator />
 
           {hasNotifications ? (
             <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
@@ -1581,13 +1572,21 @@ function NotificationBellMenu({
             </div>
           )}
 
-          <Button className="w-full" onClick={() => onNavigate("provas")} size="sm">
+          <Button
+            className="w-full"
+            onClick={() => {
+              setOpen(false);
+              onNavigate("provas");
+            }}
+            size="sm"
+          >
             Abrir provas
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </div>
+      )}
+    </div>
   );
 }
 
