@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CourseId, courses, questions, studySteps, topics } from "./content";
+import { practiceExercises } from "./practice";
 
 type Session = {
   email: string;
@@ -10,9 +11,13 @@ type Session = {
 };
 
 type View = "dashboard" | "diagnostic";
+type AuthMode = "login" | "create-password" | "check-email";
 
 const SESSION_KEY = "calculo-em-foco-session";
 const PROGRESS_KEY = "calculo-em-foco-progress";
+const EXERCISE_PROGRESS_KEY = "calculo-em-foco-exercises";
+const MATHEUS_ACCESS_KEY = "calculo-em-foco-matheus-access-created";
+const MATHEUS_EMAIL = "matheusfelipedefaro@gmail.com";
 
 function storedSession() {
   const value = window.localStorage.getItem(SESSION_KEY) ?? window.sessionStorage.getItem(SESSION_KEY);
@@ -30,14 +35,20 @@ function storedSession() {
 export default function CourseApp() {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [email, setEmail] = useState("rafaelmodiecai@gmail.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [matheusHasPassword, setMatheusHasPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loginError, setLoginError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [activeCourseId, setActiveCourseId] = useState<CourseId>("calculo-1");
   const [selectedTopicId, setSelectedTopicId] = useState("limites");
   const [completed, setCompleted] = useState<string[]>([]);
+  const [solvedExercises, setSolvedExercises] = useState<string[]>([]);
+  const [openSolutions, setOpenSolutions] = useState<string[]>([]);
   const [view, setView] = useState<View>("dashboard");
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -52,6 +63,13 @@ export default function CourseApp() {
       } catch {
         window.localStorage.removeItem(PROGRESS_KEY);
       }
+      try {
+        const savedExercises = JSON.parse(window.localStorage.getItem(EXERCISE_PROGRESS_KEY) ?? "[]");
+        if (Array.isArray(savedExercises)) setSolvedExercises(savedExercises.filter((item): item is string => typeof item === "string"));
+      } catch {
+        window.localStorage.removeItem(EXERCISE_PROGRESS_KEY);
+      }
+      setMatheusHasPassword(window.localStorage.getItem(MATHEUS_ACCESS_KEY) === "true");
       setReady(true);
     });
   }, []);
@@ -61,11 +79,17 @@ export default function CourseApp() {
     window.localStorage.setItem(PROGRESS_KEY, JSON.stringify(completed));
   }, [completed, ready]);
 
+  useEffect(() => {
+    if (!ready) return;
+    window.localStorage.setItem(EXERCISE_PROGRESS_KEY, JSON.stringify(solvedExercises));
+  }, [solvedExercises, ready]);
+
   const activeCourse = courses.find((course) => course.id === activeCourseId) ?? courses[1];
   const activeTopics = topics.filter((topic) => topic.courseId === activeCourseId);
   const selectedTopic = topics.find((topic) => topic.id === selectedTopicId) ?? activeTopics[0];
   const diagnosticQuestions = questions.filter((question) => question.courseId === activeCourseId);
   const currentQuestion = diagnosticQuestions[diagnosticIndex];
+  const currentExercises = practiceExercises.filter((exercise) => exercise.topicId === selectedTopic.id);
   const totalProgress = Math.round((completed.length / topics.length) * 100);
   const activeCompleted = activeTopics.filter((topic) => completed.includes(topic.id)).length;
   const nextTopic = topics.find((topic) => !completed.includes(topic.id)) ?? topics[0];
@@ -82,6 +106,15 @@ export default function CourseApp() {
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoginError("");
+    setAuthNotice("");
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail === MATHEUS_EMAIL && !matheusHasPassword) {
+      setAuthMode("create-password");
+      setPassword("");
+      return;
+    }
+
     setSigningIn(true);
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -101,7 +134,7 @@ export default function CourseApp() {
           apikey: supabaseKey,
           Authorization: `Bearer ${supabaseKey}`,
         },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
 
       const data = await response.json();
@@ -111,7 +144,7 @@ export default function CourseApp() {
       }
 
       const nextSession: Session = {
-        email: data.user?.email ?? email.trim(),
+        email: data.user?.email ?? normalizedEmail,
         accessToken: data.access_token,
         expiresAt: Date.now() + Number(data.expires_in ?? 3600) * 1000,
       };
@@ -124,6 +157,120 @@ export default function CourseApp() {
     } finally {
       setSigningIn(false);
     }
+  }
+
+  async function createPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoginError("");
+    setAuthNotice("");
+
+    if (email.trim().toLowerCase() !== MATHEUS_EMAIL) {
+      setLoginError("Este convite de primeiro acesso pertence ao e-mail do Matheus.");
+      return;
+    }
+    if (password.length < 8) {
+      setLoginError("Crie uma senha com pelo menos 8 caracteres.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setLoginError("As duas senhas precisam ser iguais.");
+      return;
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      setLoginError("A conexão da plataforma ainda não foi configurada neste ambiente.");
+      return;
+    }
+
+    setSigningIn(true);
+    try {
+      const response = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({
+          email: MATHEUS_EMAIL,
+          password,
+          data: { display_name: "Matheus Felipe de Faro" },
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        const message = String(data.error_description ?? data.msg ?? "");
+        if (/already|registered|exists/i.test(message)) {
+          window.localStorage.setItem(MATHEUS_ACCESS_KEY, "true");
+          setMatheusHasPassword(true);
+          setAuthMode("login");
+          setAuthNotice("Seu acesso já estava ativo. Entre com a senha que você criou.");
+          setConfirmPassword("");
+          return;
+        }
+        setLoginError(message || "Não foi possível criar a senha agora. Tente novamente.");
+        return;
+      }
+
+      if (Array.isArray(data.user?.identities) && data.user.identities.length === 0) {
+        window.localStorage.setItem(MATHEUS_ACCESS_KEY, "true");
+        setMatheusHasPassword(true);
+        setAuthMode("login");
+        setAuthNotice("Seu acesso já possui uma senha. Use-a para entrar.");
+        setPassword("");
+        setConfirmPassword("");
+        return;
+      }
+
+      window.localStorage.setItem(MATHEUS_ACCESS_KEY, "true");
+      setMatheusHasPassword(true);
+
+      if (data.access_token) {
+        const nextSession: Session = {
+          email: data.user?.email ?? MATHEUS_EMAIL,
+          accessToken: data.access_token,
+          expiresAt: Date.now() + Number(data.expires_in ?? 3600) * 1000,
+        };
+        const storage = remember ? window.localStorage : window.sessionStorage;
+        storage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+        setSession(nextSession);
+        setPassword("");
+        setConfirmPassword("");
+      } else {
+        setAuthMode("check-email");
+        setPassword("");
+        setConfirmPassword("");
+      }
+    } catch {
+      setLoginError("Não foi possível conectar. Confira sua internet e tente novamente.");
+    } finally {
+      setSigningIn(false);
+    }
+  }
+
+  function updateEmail(value: string) {
+    setEmail(value);
+    setLoginError("");
+    setAuthNotice("");
+    if (value.trim().toLowerCase() === MATHEUS_EMAIL && !matheusHasPassword) {
+      setAuthMode("create-password");
+      setPassword("");
+    } else if (authMode !== "login") {
+      setAuthMode("login");
+      setConfirmPassword("");
+    }
+  }
+
+  function useExistingPassword() {
+    setMatheusHasPassword(true);
+    setAuthMode("login");
+    setPassword("");
+    setConfirmPassword("");
+    setLoginError("");
+    setAuthNotice("Digite a senha que você já criou.");
   }
 
   function signOut() {
@@ -149,6 +296,18 @@ export default function CourseApp() {
     setCompleted((current) => current.includes(topicId)
       ? current.filter((id) => id !== topicId)
       : [...current, topicId]);
+  }
+
+  function toggleExercise(exerciseId: string) {
+    setSolvedExercises((current) => current.includes(exerciseId)
+      ? current.filter((id) => id !== exerciseId)
+      : [...current, exerciseId]);
+  }
+
+  function toggleSolution(exerciseId: string) {
+    setOpenSolutions((current) => current.includes(exerciseId)
+      ? current.filter((id) => id !== exerciseId)
+      : [...current, exerciseId]);
   }
 
   function continueCourse() {
@@ -194,29 +353,66 @@ export default function CourseApp() {
         </section>
 
         <section className="loginPanel">
-          <form className="loginForm" onSubmit={signIn}>
-            <p className="eyebrow">ÁREA DO ALUNO</p>
-            <h2>Continue de onde parou.</h2>
-            <p className="loginIntro">Seu diagnóstico e progresso ficam disponíveis neste dispositivo.</p>
+          {authMode === "check-email" ? (
+            <div className="loginForm confirmationPanel">
+              <p className="eyebrow">PRIMEIRO ACESSO</p>
+              <span className="confirmationMark" aria-hidden="true">✓</span>
+              <h2>Confirme seu e-mail.</h2>
+              <p className="loginIntro">Matheus, sua senha foi registrada. Abra a mensagem enviada para <b>{MATHEUS_EMAIL}</b> e confirme o acesso antes de entrar.</p>
+              <button className="solidButton loginButton" type="button" onClick={() => setAuthMode("login")}>Ir para o login <span>→</span></button>
+            </div>
+          ) : authMode === "create-password" ? (
+            <form className="loginForm" onSubmit={createPassword}>
+              <p className="eyebrow">PRIMEIRO ACESSO · MATHEUS</p>
+              <h2>Crie sua senha.</h2>
+              <p className="loginIntro">Seu acesso já está autorizado. Escolha uma senha pessoal com pelo menos 8 caracteres.</p>
 
-            <label>
-              <span>E-mail</span>
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
-            </label>
-            <label>
-              <span>Senha</span>
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
-            </label>
-            <label className="rememberRow">
-              <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
-              <span>Manter acesso neste navegador</span>
-            </label>
-            {loginError && <p className="formError" role="alert">{loginError}</p>}
-            <button className="solidButton loginButton" type="submit" disabled={signingIn}>
-              {signingIn ? "Entrando…" : "Entrar na plataforma"}<span aria-hidden="true">→</span>
-            </button>
-            <small>A autenticação é protegida pelo ambiente acadêmico da plataforma.</small>
-          </form>
+              <label>
+                <span>E-mail autorizado</span>
+                <input type="email" value={email} readOnly aria-readonly="true" />
+              </label>
+              <label>
+                <span>Nova senha</span>
+                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" minLength={8} required autoFocus />
+              </label>
+              <label>
+                <span>Repita a nova senha</span>
+                <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required />
+              </label>
+              <div className="passwordRule"><i className={password.length >= 8 ? "met" : ""} />Pelo menos 8 caracteres</div>
+              {loginError && <p className="formError" role="alert">{loginError}</p>}
+              <button className="solidButton loginButton" type="submit" disabled={signingIn}>
+                {signingIn ? "Criando acesso…" : "Criar senha e continuar"}<span aria-hidden="true">→</span>
+              </button>
+              <button className="authTextButton" type="button" onClick={useExistingPassword}>Já criei minha senha</button>
+              <button className="authTextButton muted" type="button" onClick={() => updateEmail("")}>Usar outro acesso</button>
+            </form>
+          ) : (
+            <form className="loginForm" onSubmit={signIn}>
+              <p className="eyebrow">ÁREA DO ALUNO</p>
+              <h2>Continue de onde parou.</h2>
+              <p className="loginIntro">Seu diagnóstico e progresso ficam disponíveis neste dispositivo.</p>
+
+              <label>
+                <span>E-mail</span>
+                <input type="email" value={email} onChange={(event) => updateEmail(event.target.value)} autoComplete="email" placeholder="seuemail@exemplo.com" required />
+              </label>
+              <label>
+                <span>Senha</span>
+                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
+              </label>
+              <label className="rememberRow">
+                <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
+                <span>Manter acesso neste navegador</span>
+              </label>
+              {authNotice && <p className="formNotice" role="status">{authNotice}</p>}
+              {loginError && <p className="formError" role="alert">{loginError}</p>}
+              <button className="solidButton loginButton" type="submit" disabled={signingIn}>
+                {signingIn ? "Entrando…" : "Entrar na plataforma"}<span aria-hidden="true">→</span>
+              </button>
+              <small>A autenticação é protegida pelo ambiente acadêmico da plataforma.</small>
+            </form>
+          )}
         </section>
       </main>
     );
@@ -375,6 +571,30 @@ export default function CourseApp() {
               <div className="noVideo"><span>{activeCourse.symbol}</span><h3>Construa o conceito no papel.</h3><p>Escreva a definição, desenhe uma interpretação e resolva um caso simples antes da lista.</p></div>
             )}
             <div className="practicePrompt"><span>03 · RECUPERAÇÃO ATIVA</span><h3>Feche o material e explique este tópico em três frases.</h3><p>Depois, resolva um exemplo sem consultar a solução. Marque como consolidado somente quando conseguir justificar cada passo.</p><button className={completed.includes(selectedTopic.id) ? "completed" : ""} type="button" onClick={() => toggleTopic(selectedTopic.id)}>{completed.includes(selectedTopic.id) ? "✓ Tópico consolidado" : "Marcar como consolidado"}</button></div>
+          </div>
+        </div>
+        <div className="exerciseLab">
+          <div className="exerciseLabHeader">
+            <div><p className="eyebrow lightEyebrow">04 · PRÁTICA DELIBERADA</p><h3>Resolva antes de abrir a resposta.</h3><p>Duas questões por tópico, da técnica essencial à aplicação. Use a pista somente depois de registrar sua primeira tentativa no papel.</p></div>
+            <div className="exerciseCounter"><strong>{currentExercises.filter((exercise) => solvedExercises.includes(exercise.id)).length}/{currentExercises.length}</strong><span>resolvidos neste tópico</span></div>
+          </div>
+          <div className="exerciseGrid">
+            {currentExercises.map((exercise, index) => {
+              const solutionOpen = openSolutions.includes(exercise.id);
+              const solved = solvedExercises.includes(exercise.id);
+              return (
+                <article className={solved ? "exerciseCard solved" : "exerciseCard"} key={exercise.id}>
+                  <div className="exerciseMeta"><span>EXERCÍCIO {String(index + 1).padStart(2, "0")}</span><b>{exercise.difficulty}</b></div>
+                  <h4>{exercise.prompt}</h4>
+                  <details><summary>Preciso de uma pista</summary><p>{exercise.hint}</p></details>
+                  {solutionOpen && <div className="exerciseSolution"><span>RESOLUÇÃO</span><p>{exercise.solution}</p></div>}
+                  <div className="exerciseActions">
+                    <button type="button" onClick={() => toggleSolution(exercise.id)}>{solutionOpen ? "Ocultar resolução" : "Conferir resolução"}</button>
+                    <button className={solved ? "solvedButton" : ""} type="button" onClick={() => toggleExercise(exercise.id)}>{solved ? "✓ Resolvido" : "Marcar como resolvido"}</button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>

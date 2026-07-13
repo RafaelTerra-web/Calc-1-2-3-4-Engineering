@@ -1,0 +1,59 @@
+export type PracticeExercise = {
+  id: string;
+  topicId: string;
+  difficulty: "Fundamental" | "Aplicação";
+  prompt: string;
+  hint: string;
+  solution: string;
+};
+
+export const practiceExercises: PracticeExercise[] = [
+  { id: "fat-1", topicId: "fatoracao", difficulty: "Fundamental", prompt: "Fatore completamente 2x² − 8x.", hint: "Procure primeiro o fator comum.", solution: "2x² − 8x = 2x(x − 4)." },
+  { id: "fat-2", topicId: "fatoracao", difficulty: "Aplicação", prompt: "Simplifique (x² − 16)/(x − 4), indicando a restrição do domínio.", hint: "Use a diferença de quadrados.", solution: "x² − 16 = (x − 4)(x + 4). Logo, a expressão vale x + 4, com x ≠ 4." },
+  { id: "eq-1", topicId: "equacoes", difficulty: "Fundamental", prompt: "Resolva 3(x − 2) = 2x + 5.", hint: "Distribua o 3 e reúna os termos com x.", solution: "3x − 6 = 2x + 5, portanto x = 11." },
+  { id: "eq-2", topicId: "equacoes", difficulty: "Aplicação", prompt: "Encontre as raízes de x² − 5x + 6 = 0.", hint: "Busque dois números cujo produto seja 6 e cuja soma seja −5.", solution: "(x − 2)(x − 3) = 0. As raízes são x = 2 e x = 3." },
+  { id: "fun-1", topicId: "funcoes", difficulty: "Fundamental", prompt: "Determine o domínio real de f(x) = √(5 − 2x).", hint: "O radicando de uma raiz quadrada deve ser não negativo.", solution: "5 − 2x ≥ 0, então x ≤ 5/2. Domínio: (−∞, 5/2]." },
+  { id: "fun-2", topicId: "funcoes", difficulty: "Aplicação", prompt: "Encontre a inversa de f(x) = 3x − 4.", hint: "Escreva y = f(x), isole x e troque as variáveis.", solution: "y = 3x − 4 implica x = (y + 4)/3. Assim, f⁻¹(x) = (x + 4)/3." },
+  { id: "tri-1", topicId: "trigonometria", difficulty: "Fundamental", prompt: "Calcule sen(5π/6) sem calculadora.", hint: "Use o ângulo de referência π/6 e observe o quadrante.", solution: "5π/6 está no segundo quadrante, onde o seno é positivo. Portanto, sen(5π/6) = 1/2." },
+  { id: "tri-2", topicId: "trigonometria", difficulty: "Aplicação", prompt: "Simplifique (1 − cos²x)/sen x, quando sen x ≠ 0.", hint: "Aplique a identidade trigonométrica fundamental.", solution: "1 − cos²x = sen²x. Dividindo por sen x, o resultado é sen x." },
+  { id: "log-1", topicId: "log-exp", difficulty: "Fundamental", prompt: "Resolva 2^(x+1) = 16.", hint: "Escreva 16 como potência de base 2.", solution: "16 = 2⁴, então x + 1 = 4 e x = 3." },
+  { id: "log-2", topicId: "log-exp", difficulty: "Aplicação", prompt: "Resolva log₃(x − 1) = 2 e verifique o domínio.", hint: "Passe da forma logarítmica para a exponencial.", solution: "x − 1 = 3² = 9, logo x = 10. Como x > 1, a solução pertence ao domínio." },
+  { id: "geo-1", topicId: "geometria-analitica", difficulty: "Fundamental", prompt: "Encontre a equação da reta que passa por (1,2) e (3,6).", hint: "Calcule primeiro o coeficiente angular.", solution: "m = (6 − 2)/(3 − 1) = 2. Usando (1,2), y − 2 = 2(x − 1), portanto y = 2x." },
+  { id: "geo-2", topicId: "geometria-analitica", difficulty: "Aplicação", prompt: "Calcule a distância de (2,−1) à reta 3x + 4y − 5 = 0.", hint: "Use |Ax₀ + By₀ + C|/√(A²+B²).", solution: "d = |3·2 + 4·(−1) − 5|/5 = 3/5." },
+  { id: "lim-1", topicId: "limites", difficulty: "Fundamental", prompt: "Calcule lim x→3 de (x² − 9)/(x − 3).", hint: "Fatore o numerador antes de substituir.", solution: "A expressão simplifica para x + 3 quando x ≠ 3. O limite é 6." },
+  { id: "lim-2", topicId: "limites", difficulty: "Aplicação", prompt: "Calcule lim x→0 de sen(4x)/x.", hint: "Crie o limite notável sen u/u.", solution: "sen(4x)/x = 4·sen(4x)/(4x). Como sen u/u → 1, o limite é 4." },
+  { id: "con-1", topicId: "continuidade", difficulty: "Fundamental", prompt: "Para qual k a função f(x)=x+2 se x<1 e f(x)=kx se x≥1 é contínua em x=1?", hint: "Iguale o limite pela esquerda ao valor da função.", solution: "O limite pela esquerda é 3 e f(1)=k. Portanto, k = 3." },
+  { id: "con-2", topicId: "continuidade", difficulty: "Aplicação", prompt: "Classifique a descontinuidade de (x²−1)/(x−1) em x=1.", hint: "Simplifique a expressão fora do ponto problemático.", solution: "Para x ≠ 1, a função é x+1 e tende a 2. Como há apenas um ponto ausente, a descontinuidade é removível." },
+  { id: "der-1", topicId: "derivadas", difficulty: "Fundamental", prompt: "Derive f(x)=x³eˣ.", hint: "Aplique a regra do produto.", solution: "f′(x)=3x²eˣ+x³eˣ=eˣ(x³+3x²)." },
+  { id: "der-2", topicId: "derivadas", difficulty: "Aplicação", prompt: "Na circunferência x²+y²=25, encontre dy/dx.", hint: "Derive implicitamente em relação a x.", solution: "2x+2y·y′=0, então y′=−x/y, nos pontos em que y ≠ 0." },
+  { id: "apl-1", topicId: "aplicacoes-derivadas", difficulty: "Fundamental", prompt: "Um retângulo tem perímetro 20 m. Quais dimensões maximizam a área?", hint: "Escreva y=10−x e derive A(x)=xy.", solution: "A(x)=x(10−x). A′=10−2x=0 dá x=5 e y=5. A área máxima é 25 m²." },
+  { id: "apl-2", topicId: "aplicacoes-derivadas", difficulty: "Aplicação", prompt: "Uma partícula tem posição s(t)=t³−6t²+9t. Em quais instantes ela está em repouso?", hint: "Repouso significa velocidade igual a zero.", solution: "v(t)=s′(t)=3t²−12t+9=3(t−1)(t−3). Logo, t=1 e t=3." },
+  { id: "int-1", topicId: "integrais", difficulty: "Fundamental", prompt: "Calcule ∫(4x³−2x)dx.", hint: "Integre termo a termo pela regra da potência.", solution: "∫(4x³−2x)dx=x⁴−x²+C." },
+  { id: "int-2", topicId: "integrais", difficulty: "Aplicação", prompt: "Calcule ∫₀²(3x+1)dx e interprete o resultado como acumulação.", hint: "Encontre uma primitiva e aplique os limites.", solution: "[(3/2)x²+x]₀²=6+2=8 unidades acumuladas." },
+  { id: "tec-1", topicId: "tecnicas-integracao", difficulty: "Fundamental", prompt: "Calcule ∫2x·cos(x²)dx.", hint: "Use u=x².", solution: "Com u=x² e du=2x dx, a integral é ∫cos u du=sen(x²)+C." },
+  { id: "tec-2", topicId: "tecnicas-integracao", difficulty: "Aplicação", prompt: "Calcule ∫x eˣ dx.", hint: "Use integração por partes com u=x.", solution: "Tomando u=x e dv=eˣdx, resulta xeˣ−∫eˣdx=eˣ(x−1)+C." },
+  { id: "imp-1", topicId: "integrais-improprias", difficulty: "Fundamental", prompt: "Determine se ∫₁∞ 1/x³ dx converge e calcule seu valor.", hint: "Substitua o infinito por b e tome o limite.", solution: "∫₁ᵇx⁻³dx=1/2−1/(2b²). O limite é 1/2, portanto converge." },
+  { id: "imp-2", topicId: "integrais-improprias", difficulty: "Aplicação", prompt: "Calcule ∫₀¹ 1/√x dx.", hint: "Há uma singularidade em zero; escreva a integral como limite.", solution: "lim a→0⁺ [2√x]ₐ¹=2. A integral converge para 2." },
+  { id: "seq-1", topicId: "sequencias-series", difficulty: "Fundamental", prompt: "Calcule Σ de n=0 a ∞ de (1/3)ⁿ.", hint: "Use a soma de uma série geométrica com |r|<1.", solution: "A soma é 1/(1−1/3)=3/2." },
+  { id: "seq-2", topicId: "sequencias-series", difficulty: "Aplicação", prompt: "A série harmônica Σ1/n converge? Justifique pelo teste da integral.", hint: "Compare com ∫₁∞1/x dx.", solution: "A integral é lim b→∞ ln b, que diverge. Pelo teste da integral, a série harmônica diverge." },
+  { id: "ser-1", topicId: "series-potencias", difficulty: "Fundamental", prompt: "Encontre o intervalo de convergência de Σ((x−2)/4)ⁿ.", hint: "É uma série geométrica; analise também os extremos.", solution: "É preciso |x−2|<4, isto é, −2<x<6. Nos dois extremos os termos não tendem a zero. Intervalo: (−2,6)." },
+  { id: "ser-2", topicId: "series-potencias", difficulty: "Aplicação", prompt: "Escreva o polinômio de Taylor de grau 3 de sen x em torno de zero.", hint: "Use as derivadas sucessivas avaliadas em zero.", solution: "P₃(x)=x−x³/3!=x−x³/6." },
+  { id: "vet-1", topicId: "vetores", difficulty: "Fundamental", prompt: "Calcule a norma de u=(2,−1,2).", hint: "Some os quadrados das componentes e extraia a raiz.", solution: "‖u‖=√(4+1+4)=3." },
+  { id: "vet-2", topicId: "vetores", difficulty: "Aplicação", prompt: "Calcule (1,0,0)×(0,1,0) e interprete a direção.", hint: "Use a regra da mão direita.", solution: "O produto vetorial é (0,0,1), perpendicular ao plano xy e no sentido positivo de z." },
+  { id: "var-1", topicId: "funcoes-varias", difficulty: "Fundamental", prompt: "Determine o domínio de f(x,y)=√(9−x²−y²).", hint: "O radicando deve ser não negativo.", solution: "x²+y²≤9: o disco fechado de raio 3 centrado na origem." },
+  { id: "var-2", topicId: "funcoes-varias", difficulty: "Aplicação", prompt: "Descreva a curva de nível 4 de f(x,y)=x²+y².", hint: "Iguale a função ao valor do nível.", solution: "x²+y²=4, uma circunferência de raio 2 centrada na origem." },
+  { id: "par-1", topicId: "derivadas-parciais", difficulty: "Fundamental", prompt: "Calcule ∇f(1,2) para f=x²+xy+y².", hint: "Calcule fx e fy antes de substituir o ponto.", solution: "fx=2x+y e fy=x+2y. Em (1,2), ∇f=(4,5)." },
+  { id: "par-2", topicId: "derivadas-parciais", difficulty: "Aplicação", prompt: "Encontre o plano tangente a z=x²+y² no ponto (1,1,2).", hint: "Use z−z₀=fx(x−x₀)+fy(y−y₀).", solution: "fx=2x e fy=2y. Logo z−2=2(x−1)+2(y−1), ou z=2x+2y−2." },
+  { id: "mul-1", topicId: "integrais-multiplas", difficulty: "Fundamental", prompt: "Calcule ∬R 1 dA para R=[0,2]×[0,3].", hint: "Integrar 1 sobre uma região fornece sua área.", solution: "A área do retângulo é 2·3=6, portanto a integral vale 6." },
+  { id: "mul-2", topicId: "integrais-multiplas", difficulty: "Aplicação", prompt: "Calcule ∫₀¹∫₀²(x+y)dy dx.", hint: "Integre primeiro em y, tratando x como constante.", solution: "A integral interna é 2x+2. Integrando de 0 a 1 em x, obtemos 3." },
+  { id: "cam-1", topicId: "campos-vetoriais", difficulty: "Fundamental", prompt: "Calcule div F para F(x,y)=(x²,xy).", hint: "Some ∂F₁/∂x e ∂F₂/∂y.", solution: "div F=2x+x=3x." },
+  { id: "cam-2", topicId: "campos-vetoriais", difficulty: "Aplicação", prompt: "Mostre que F=(2x,2y) é conservativo e encontre um potencial.", hint: "Integre a primeira componente em x e ajuste com a segunda.", solution: "Um potencial é φ=x²+y²+C, pois ∇φ=(2x,2y). Logo o campo é conservativo." },
+  { id: "lin-1", topicId: "integrais-linha", difficulty: "Fundamental", prompt: "Calcule ∫C(1,0)·dr para r(t)=(t,t²), 0≤t≤1.", hint: "Substitua dr=r′(t)dt.", solution: "r′=(1,2t), então (1,0)·r′=1. A integral de 0 a 1 vale 1." },
+  { id: "lin-2", topicId: "integrais-linha", difficulty: "Aplicação", prompt: "Calcule o trabalho de F=∇(x²+y²) de (0,0) até (3,4).", hint: "Use o teorema fundamental das integrais de linha.", solution: "O trabalho é φ(3,4)−φ(0,0)=9+16=25." },
+  { id: "sup-1", topicId: "superficies", difficulty: "Fundamental", prompt: "Parametrize o plano z=x+y usando u e v.", hint: "Escolha x=u e y=v.", solution: "Uma parametrização é r(u,v)=(u,v,u+v), com domínio adequado à região desejada." },
+  { id: "sup-2", topicId: "superficies", difficulty: "Aplicação", prompt: "Qual é a área da superfície de uma esfera de raio 2?", hint: "Use A=4πr².", solution: "A=4π·2²=16π unidades quadradas." },
+  { id: "teo-1", topicId: "teoremas-vetoriais", difficulty: "Fundamental", prompt: "Use Green para calcular a circulação de F=(−y,x) na circunferência unitária orientada positivamente.", hint: "Calcule ∂Q/∂x−∂P/∂y e integre no disco.", solution: "∂Q/∂x−∂P/∂y=1−(−1)=2. A integral dupla é 2·π=2π." },
+  { id: "teo-2", topicId: "teoremas-vetoriais", difficulty: "Aplicação", prompt: "Use Gauss para calcular o fluxo de F=(x,y,z) pela esfera unitária orientada para fora.", hint: "O divergente é constante e o volume da esfera é 4π/3.", solution: "div F=3. Pelo Teorema da Divergência, o fluxo é 3·(4π/3)=4π." },
+  { id: "edo-1", topicId: "edos-intro", difficulty: "Fundamental", prompt: "Resolva y′=3x² com y(0)=2.", hint: "Integre os dois lados e use a condição inicial.", solution: "y=x³+C. Como y(0)=2, C=2; logo y=x³+2." },
+  { id: "edo-2", topicId: "edos-intro", difficulty: "Aplicação", prompt: "Resolva y′+2y=0 com y(0)=5.", hint: "A equação é separável ou linear homogênea.", solution: "dy/y=−2dx, então y=Ce⁻²ˣ. Pela condição inicial, C=5 e y=5e⁻²ˣ." },
+];
