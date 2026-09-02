@@ -9,7 +9,8 @@ import {
   topics,
 } from "../src/lib/curriculum";
 
-const initialEmail = "rafaelmodiecai@gmail.com";
+const initialEmail = process.env.INITIAL_USER_EMAIL?.trim().toLowerCase();
+const initialName = process.env.INITIAL_USER_NAME?.trim() || "Administrador";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const requestedInitialPassword = process.env.INITIAL_USER_PASSWORD;
@@ -27,8 +28,7 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
   },
 });
 
-const initialPassword =
-  requestedInitialPassword ?? `${randomBytes(18).toString("base64url")}A1!`;
+const generatedInitialPassword = `${randomBytes(18).toString("base64url")}A1!`;
 
 async function upsertAcademicContent() {
   const { error: coursesError } = await supabase.from("courses").upsert(
@@ -116,6 +116,8 @@ async function upsertAcademicContent() {
       id: option.id,
       text: option.text,
       order: index + 1,
+      error_type: option.misconception ?? null,
+      prerequisite_id: option.prerequisiteId ?? null,
     })),
   );
 
@@ -172,6 +174,13 @@ async function upsertAcademicContent() {
 }
 
 async function upsertInitialUser() {
+  if (!initialEmail) {
+    console.log(
+      "INITIAL_USER_EMAIL não informado; conteúdo semeado sem criar usuário administrativo.",
+    );
+    return { created: false, skipped: true };
+  }
+
   const { data: userList, error: listError } =
     await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
 
@@ -183,17 +192,20 @@ async function upsertInitialUser() {
     (user) => user.email?.toLowerCase() === initialEmail.toLowerCase(),
   );
 
+  const initialPassword = requestedInitialPassword ?? generatedInitialPassword;
   const userResult = existingUser
     ? await supabase.auth.admin.updateUserById(existingUser.id, {
-        password: initialPassword,
+        ...(requestedInitialPassword
+          ? { password: requestedInitialPassword }
+          : {}),
         email_confirm: true,
-        user_metadata: { name: "Rafael Terra" },
+        user_metadata: { name: initialName },
       })
     : await supabase.auth.admin.createUser({
         email: initialEmail,
         password: initialPassword,
         email_confirm: true,
-        user_metadata: { name: "Rafael Terra" },
+        user_metadata: { name: initialName },
       });
 
   if (userResult.error || !userResult.data.user) {
@@ -203,26 +215,32 @@ async function upsertInitialUser() {
   const { error: profileError } = await supabase.from("profiles").upsert({
     id: userResult.data.user.id,
     email: initialEmail,
-    name: "Rafael Terra",
+    name: initialName,
     role: "admin",
   });
 
   if (profileError) {
     throw profileError;
   }
+
+  return { created: !existingUser, skipped: false };
 }
 
 async function main() {
   await upsertAcademicContent();
-  await upsertInitialUser();
+  const userSeed = await upsertInitialUser();
 
   console.log("Seed concluído.");
-  console.log(`Usuário: ${initialEmail}`);
-  console.log(
-    requestedInitialPassword
-      ? "Senha definida a partir de INITIAL_USER_PASSWORD."
-      : `Senha temporária: ${initialPassword}`,
-  );
+  if (initialEmail) {
+    console.log(`Usuário administrativo: ${initialEmail}`);
+    if (requestedInitialPassword) {
+      console.log("Senha definida a partir de INITIAL_USER_PASSWORD.");
+    } else if (userSeed.created) {
+      console.log(`Senha temporária: ${generatedInitialPassword}`);
+    } else {
+      console.log("Senha do usuário existente preservada.");
+    }
+  }
 }
 
 main().catch((error) => {

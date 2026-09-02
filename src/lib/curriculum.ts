@@ -285,7 +285,7 @@ export const prerequisites: Prerequisite[] = [
   },
 ];
 
-export const seedQuestions: Question[] = [
+const baseSeedQuestions: Question[] = [
   {
     id: "q-pre-001",
     courseId: "pre-calculo",
@@ -566,7 +566,7 @@ export const seedQuestions: Question[] = [
       { id: "a", text: "Um segmento de reta" },
       { id: "b", text: "A circunferência unitária completa" },
       { id: "c", text: "Uma parábola" },
-      { id: "d", text: "Uma elipse de eixo maior 2" },
+      { id: "d", text: "Uma elipse de semieixos 2 e 1" },
     ],
     correctOptionId: "b",
     explanation: "cos^2(t) + sen^2(t) = 1, e o intervalo percorre uma volta completa.",
@@ -592,6 +592,88 @@ export const seedQuestions: Question[] = [
     errorType: "Escolha do teorema vetorial",
     tags: ["green", "teoremas-vetoriais"],
   },
+];
+
+type ExtraQuestion = {
+  id: string;
+  courseId: Question["courseId"];
+  topicId: string;
+  difficulty: Question["difficulty"];
+  prompt: string;
+  choices: [string, string, string, string];
+  correct: 0 | 1 | 2 | 3;
+  explanation: string;
+  prerequisiteIds: string[];
+  errorType: string;
+  tags: string[];
+};
+
+const optionIds = ["a", "b", "c", "d"] as const;
+
+function makeQuestion(input: ExtraQuestion): Question {
+  return {
+    id: input.id,
+    courseId: input.courseId,
+    topicId: input.topicId,
+    prerequisiteIds: input.prerequisiteIds,
+    prompt: input.prompt,
+    options: input.choices.map((text, index) => ({
+      id: optionIds[index],
+      text,
+      ...(index === input.correct
+        ? {}
+        : {
+            misconception: input.errorType,
+            prerequisiteId: input.prerequisiteIds[0],
+          }),
+    })),
+    correctOptionId: optionIds[input.correct],
+    explanation: input.explanation,
+    difficulty: input.difficulty,
+    errorType: input.errorType,
+    tags: input.tags,
+  };
+}
+
+const supplementalQuestions: Question[] = [
+  makeQuestion({ id: "q-pre-fat-02", courseId: "pre-calculo", topicId: "fatoracao", difficulty: "basico", prompt: "Coloque 6x² − 9x em evidência.", choices: ["3x(2x − 3)", "3(2x² − 3x)", "x(6x − 9x)", "3x(2x + 3)"], correct: 0, explanation: "O máximo fator comum é 3x: 6x² − 9x = 3x(2x − 3).", prerequisiteIds: ["pre-fatoracao"], errorType: "Fator comum incompleto", tags: ["fatoracao", "fator-comum"] }),
+  makeQuestion({ id: "q-pre-fat-03", courseId: "pre-calculo", topicId: "fatoracao", difficulty: "basico", prompt: "Fatore x² + 5x + 6.", choices: ["(x + 2)(x + 3)", "(x − 2)(x − 3)", "(x + 1)(x + 6)", "(x − 2)(x + 3)"], correct: 0, explanation: "Procuramos dois números de soma 5 e produto 6: 2 e 3.", prerequisiteIds: ["pre-fatoracao"], errorType: "Soma e produto no trinômio", tags: ["fatoracao", "trinomio"] }),
+  makeQuestion({ id: "q-pre-fat-04", courseId: "pre-calculo", topicId: "fatoracao", difficulty: "medio", prompt: "Simplifique (x² − 4)/(x² − x − 2), com x ≠ −1 e x ≠ 2.", choices: ["(x + 2)/(x + 1)", "(x − 2)/(x − 1)", "(x + 2)/(x − 1)", "1"], correct: 0, explanation: "Fatore: (x−2)(x+2)/[(x−2)(x+1)]. Cancelando x−2, resulta (x+2)/(x+1).", prerequisiteIds: ["pre-fatoracao"], errorType: "Cancelamento sem fatorar", tags: ["fatoracao", "racional"] }),
+  makeQuestion({ id: "q-pre-eq-01", courseId: "pre-calculo", topicId: "equacoes", difficulty: "basico", prompt: "Resolva 2x + 5 = 17.", choices: ["x = 6", "x = 11", "x = 4", "x = −6"], correct: 0, explanation: "Subtraia 5: 2x=12; depois divida por 2: x=6.", prerequisiteIds: ["pre-equacoes"], errorType: "Operação inversa incorreta", tags: ["equacoes", "linear"] }),
+  makeQuestion({ id: "q-pre-log-01", courseId: "pre-calculo", topicId: "log-exp", difficulty: "basico", prompt: "Se 2ˣ = 8, qual é x?", choices: ["3", "4", "2", "8"], correct: 0, explanation: "Como 8 = 2³, a igualdade das bases dá x=3.", prerequisiteIds: ["pre-log-exp"], errorType: "Conversão entre forma exponencial e potência", tags: ["exponenciais"] }),
+  makeQuestion({ id: "q-pre-geo-01", courseId: "pre-calculo", topicId: "geometria-analitica", difficulty: "basico", prompt: "Qual é a distância entre A=(1,2) e B=(4,6)?", choices: ["5", "7", "√7", "25"], correct: 0, explanation: "d=√[(4−1)²+(6−2)²]=√(9+16)=5.", prerequisiteIds: ["pre-geometria"], errorType: "Fórmula da distância", tags: ["geometria", "distancia"] }),
+  makeQuestion({ id: "q-c1-lim-02", courseId: "calculo-1", topicId: "limites", difficulty: "basico", prompt: "Calcule lim x→3 de (2x + 1).", choices: ["7", "6", "3", "Não existe"], correct: 0, explanation: "Funções lineares são contínuas; basta substituir x=3: 2·3+1=7.", prerequisiteIds: ["pre-funcoes"], errorType: "Substituição em função contínua", tags: ["limites", "continuidade"] }),
+  makeQuestion({ id: "q-c1-lim-03", courseId: "calculo-1", topicId: "limites", difficulty: "medio", prompt: "Calcule lim x→0 de sen(3x)/x.", choices: ["3", "1", "0", "Não existe"], correct: 0, explanation: "Escreva sen(3x)/x = 3·sen(3x)/(3x); o limite notável vale 1.", prerequisiteIds: ["pre-trigonometria"], errorType: "Escala no limite trigonométrico", tags: ["limites", "trigonometria"] }),
+  makeQuestion({ id: "q-c1-lim-04", courseId: "calculo-1", topicId: "limites", difficulty: "medio", prompt: "Qual é lim x→∞ de (5x²−1)/(2x²+3x)?", choices: ["5/2", "2/5", "0", "∞"], correct: 0, explanation: "Numerador e denominador têm o mesmo grau; o limite é a razão 5/2 dos coeficientes líderes.", prerequisiteIds: ["pre-funcoes"], errorType: "Comparação de graus no infinito", tags: ["limites", "infinito"] }),
+  makeQuestion({ id: "q-c1-lim-05", courseId: "calculo-1", topicId: "limites", difficulty: "avancado", prompt: "Para f(x,y)=(x²y)/(x⁴+y²), qual é o limite quando (x,y)→(0,0)?", choices: ["Não existe", "0", "1/2", "1"], correct: 0, explanation: "Pelo caminho y=x², f=x⁴/(2x⁴)=1/2; por y=0, f=0. Caminhos diferentes dão valores diferentes.", prerequisiteIds: ["pre-funcoes"], errorType: "Teste insuficiente de caminhos", tags: ["limites", "varias-variaveis"] }),
+  makeQuestion({ id: "q-c1-cont-01", courseId: "calculo-1", topicId: "continuidade", difficulty: "medio", prompt: "Defina f(2) para tornar f(x)=(x²−4)/(x−2), x≠2, contínua em x=2.", choices: ["4", "2", "0", "Não é possível"], correct: 0, explanation: "Para x≠2, f(x)=x+2; portanto lim x→2 f(x)=4 e devemos definir f(2)=4.", prerequisiteIds: ["pre-produtos-notaveis"], errorType: "Confusão entre valor e limite", tags: ["continuidade", "removivel"] }),
+  makeQuestion({ id: "q-c1-der-02", courseId: "calculo-1", topicId: "derivadas", difficulty: "basico", prompt: "Se s(t)=4t², qual é a velocidade instantânea v(t)?", choices: ["8t", "4t", "8", "2t"], correct: 0, explanation: "Velocidade é a derivada da posição: v(t)=s′(t)=8t.", prerequisiteIds: ["pre-funcoes"], errorType: "Regra da potência", tags: ["derivadas", "cinematica"] }),
+  makeQuestion({ id: "q-c1-der-03", courseId: "calculo-1", topicId: "derivadas", difficulty: "medio", prompt: "Derive h(x)=(x²+1)⁵.", choices: ["10x(x²+1)⁴", "5(x²+1)⁴", "10x(x²+1)⁵", "5x(x²+1)⁴"], correct: 0, explanation: "Regra da cadeia: 5(x²+1)⁴ multiplicado pela derivada interna 2x.", prerequisiteIds: ["pre-funcoes"], errorType: "Omissão da derivada interna", tags: ["derivadas", "cadeia"] }),
+  makeQuestion({ id: "q-c1-der-04", courseId: "calculo-1", topicId: "derivadas", difficulty: "medio", prompt: "Se xy+y²=6, qual é dy/dx onde x+2y≠0?", choices: ["−y/(x+2y)", "−x/(x+2y)", "y/(x+2y)", "−y/(2x+y)"], correct: 0, explanation: "Derivando: y+x y′+2y y′=0; logo y′=−y/(x+2y).", prerequisiteIds: ["pre-equacoes"], errorType: "Derivação implícita do produto", tags: ["derivadas", "implicita"] }),
+  makeQuestion({ id: "q-c1-der-05", courseId: "calculo-1", topicId: "derivadas", difficulty: "avancado", prompt: "Para f(x)=xˣ, x>0, qual é f′(x)?", choices: ["xˣ(ln x+1)", "x·xˣ⁻¹", "xˣ ln x", "xˣ⁻¹"], correct: 0, explanation: "Use logaritmo: ln f=x ln x. Então f′/f=ln x+1 e f′=xˣ(ln x+1).", prerequisiteIds: ["pre-log-exp"], errorType: "Derivação logarítmica", tags: ["derivadas", "logaritmica"] }),
+  makeQuestion({ id: "q-c2-tec-02", courseId: "calculo-2", topicId: "tecnicas-integracao", difficulty: "basico", prompt: "Qual substituição simplifica ∫2x cos(x²) dx?", choices: ["u=x²", "u=cos x", "u=2x", "u=x³"], correct: 0, explanation: "Com u=x², du=2x dx e a integral vira ∫cos u du.", prerequisiteIds: ["pre-funcoes"], errorType: "Escolha da substituição", tags: ["integracao", "substituicao"] }),
+  makeQuestion({ id: "q-c2-tec-03", courseId: "calculo-2", topicId: "tecnicas-integracao", difficulty: "basico", prompt: "Uma primitiva de 1/(1+x²) é:", choices: ["arctan x + C", "ln(1+x²)+C", "1/(2x)+C", "sen x + C"], correct: 0, explanation: "A derivada de arctan x é 1/(1+x²).", prerequisiteIds: ["pre-funcoes"], errorType: "Primitiva trigonométrica inversa", tags: ["integracao", "primitivas"] }),
+  makeQuestion({ id: "q-c2-tec-04", courseId: "calculo-2", topicId: "tecnicas-integracao", difficulty: "medio", prompt: "Na integração por partes de ∫x eˣ dx, uma escolha eficiente é:", choices: ["u=x e dv=eˣdx", "u=eˣ e dv=x dx", "u=xeˣ e dv=dx", "u=1 e dv=xeˣdx"], correct: 0, explanation: "Escolher u=x reduz o polinômio ao derivar, e integrar dv=eˣdx é imediato.", prerequisiteIds: ["pre-log-exp"], errorType: "Escolha de u e dv", tags: ["integracao", "partes"] }),
+  makeQuestion({ id: "q-c2-tec-05", courseId: "calculo-2", topicId: "tecnicas-integracao", difficulty: "medio", prompt: "Calcule ∫₀¹ 3x² dx.", choices: ["1", "3", "1/3", "0"], correct: 0, explanation: "Uma primitiva é x³; avaliando de 0 a 1, obtemos 1.", prerequisiteIds: ["pre-funcoes"], errorType: "Avaliação nos limites", tags: ["integracao", "definida"] }),
+  makeQuestion({ id: "q-c2-tec-06", courseId: "calculo-2", topicId: "tecnicas-integracao", difficulty: "avancado", prompt: "Para ∫√(9−x²) dx, qual substituição trigonométrica é natural?", choices: ["x=3 sen θ", "x=3 tan θ", "x=3 sec θ", "x=9 sen θ"], correct: 0, explanation: "x=3 sen θ transforma √(9−x²) em 3 cos θ no intervalo apropriado.", prerequisiteIds: ["pre-trigonometria"], errorType: "Substituição trigonométrica inadequada", tags: ["integracao", "substituicao-trigonometrica"] }),
+  makeQuestion({ id: "q-c3-var-01", courseId: "calculo-3", topicId: "funcoes-varias", difficulty: "basico", prompt: "O domínio real de f(x,y)=√(4−x²−y²) é:", choices: ["x²+y²≤4", "x²+y²≥4", "x+y≤4", "todo ℝ²"], correct: 0, explanation: "O radicando deve ser não negativo: 4−x²−y²≥0.", prerequisiteIds: ["pre-equacoes"], errorType: "Restrição de domínio multivariável", tags: ["varias-variaveis", "dominio"] }),
+  makeQuestion({ id: "q-c3-par-02", courseId: "calculo-3", topicId: "derivadas-parciais", difficulty: "basico", prompt: "Para f(x,y)=3x+2y, qual é ∇f?", choices: ["(3,2)", "(3x,2y)", "(2,3)", "5"], correct: 0, explanation: "∂f/∂x=3 e ∂f/∂y=2; portanto ∇f=(3,2).", prerequisiteIds: ["pre-funcoes"], errorType: "Componentes do gradiente", tags: ["gradiente"] }),
+  makeQuestion({ id: "q-c3-par-03", courseId: "calculo-3", topicId: "derivadas-parciais", difficulty: "basico", prompt: "Para z=x²+y², qual é o plano tangente em (1,1,2)?", choices: ["z=2x+2y−2", "z=x+y", "z=2x+2y", "z=x²+y²"], correct: 0, explanation: "z−2=2(x−1)+2(y−1), logo z=2x+2y−2.", prerequisiteIds: ["pre-geometria"], errorType: "Linearização no ponto", tags: ["parciais", "plano-tangente"] }),
+  makeQuestion({ id: "q-c3-par-04", courseId: "calculo-3", topicId: "derivadas-parciais", difficulty: "medio", prompt: "Se T(x,y)=x²−y, qual é a taxa direcional em (1,0) na direção unitária (0,1)?", choices: ["−1", "2", "1", "0"], correct: 0, explanation: "∇T=(2x,−1); em (1,0), (2,−1)·(0,1)=−1.", prerequisiteIds: ["pre-geometria"], errorType: "Produto escalar na derivada direcional", tags: ["parciais", "direcional"] }),
+  makeQuestion({ id: "q-c3-par-05", courseId: "calculo-3", topicId: "derivadas-parciais", difficulty: "avancado", prompt: "Se z=f(x,y), x=t² e y=eᵗ, então dz/dt é:", choices: ["2t fₓ + eᵗ fᵧ", "fₓ+fᵧ", "t² fₓ+eᵗ fᵧ", "2t+eᵗ"], correct: 0, explanation: "Pela regra da cadeia, dz/dt=fₓ dx/dt+fᵧ dy/dt=2t fₓ+eᵗ fᵧ.", prerequisiteIds: ["pre-funcoes"], errorType: "Regra da cadeia multivariável", tags: ["parciais", "cadeia"] }),
+  makeQuestion({ id: "q-c3-par-06", courseId: "calculo-3", topicId: "derivadas-parciais", difficulty: "avancado", prompt: "Para f(x,y)=x²+y², o ponto (0,0) é:", choices: ["mínimo global", "máximo global", "ponto de sela", "não crítico"], correct: 0, explanation: "∇f(0,0)=0 e a Hessiana diag(2,2) é positiva definida; além disso f≥0.", prerequisiteIds: ["pre-equacoes"], errorType: "Classificação pela Hessiana", tags: ["parciais", "hessiana"] }),
+  makeQuestion({ id: "q-c4-cam-02", courseId: "calculo-4", topicId: "campos-vetoriais", difficulty: "basico", prompt: "O campo F(x,y)=(−y,x) é visualmente associado a:", choices: ["rotação em torno da origem", "fluxo radial para fora", "campo constante", "fluxo apenas horizontal"], correct: 0, explanation: "F é perpendicular ao vetor posição (x,y), produzindo circulação anti-horária.", prerequisiteIds: ["pre-geometria"], errorType: "Interpretação geométrica do campo", tags: ["campos", "rotacao"] }),
+  makeQuestion({ id: "q-c4-cam-03", courseId: "calculo-4", topicId: "campos-vetoriais", difficulty: "basico", prompt: "Para φ(x,y)=x²+y², qual campo é ∇φ?", choices: ["(2x,2y)", "(x,y)", "(2,2)", "(−2y,2x)"], correct: 0, explanation: "O gradiente reúne as derivadas parciais: ∇φ=(2x,2y).", prerequisiteIds: ["pre-funcoes"], errorType: "Cálculo do campo gradiente", tags: ["campos", "gradiente"] }),
+  makeQuestion({ id: "q-c4-cam-04", courseId: "calculo-4", topicId: "campos-vetoriais", difficulty: "medio", prompt: "Em uma região simplesmente conexa, se ∂Q/∂x=∂P/∂y para F=(P,Q) de classe C¹, então F é:", choices: ["conservativo", "necessariamente divergente", "constante", "descontínuo"], correct: 0, explanation: "A igualdade das derivadas cruzadas em região simplesmente conexa garante potencial escalar.", prerequisiteIds: ["pre-funcoes"], errorType: "Critério de conservatividade", tags: ["campos", "conservativo"] }),
+  makeQuestion({ id: "q-c4-cam-05", courseId: "calculo-4", topicId: "campos-vetoriais", difficulty: "avancado", prompt: "Qual é o rotacional de F(x,y,z)=(yz,xz,xy)?", choices: ["(0,0,0)", "(x,y,z)", "(y,z,x)", "(z,x,y)"], correct: 0, explanation: "As derivadas cruzadas correspondentes são iguais; F=∇(xyz), logo seu rotacional é zero.", prerequisiteIds: ["pre-funcoes"], errorType: "Ordem das componentes do rotacional", tags: ["campos", "rotacional"] }),
+  makeQuestion({ id: "q-c4-cam-06", courseId: "calculo-4", topicId: "campos-vetoriais", difficulty: "avancado", prompt: "Para F=(x/r³,y/r³,z/r³), r=√(x²+y²+z²), qual é div F onde r≠0?", choices: ["0", "1/r²", "3/r³", "−1/r³"], correct: 0, explanation: "F é o campo radial inverso ao quadrado; calculando as três derivadas, os termos somam zero fora da origem.", prerequisiteIds: ["pre-funcoes"], errorType: "Divergência de campo radial", tags: ["campos", "divergencia"] }),
+  makeQuestion({ id: "q-c4-sup-01", courseId: "calculo-4", topicId: "superficies", difficulty: "medio", prompt: "A parametrização r(u,v)=(u,v,u²+v²) descreve:", choices: ["um paraboloide", "um plano", "uma esfera", "um cilindro"], correct: 0, explanation: "Como x=u, y=v e z=u²+v²=x²+y², trata-se de um paraboloide.", prerequisiteIds: ["pre-geometria"], errorType: "Leitura de superfície parametrizada", tags: ["superficies", "parametrizacao"] }),
+  makeQuestion({ id: "q-c4-edo-01", courseId: "calculo-4", topicId: "edos-intro", difficulty: "basico", prompt: "A solução geral de y′=3y é:", choices: ["y=Ce³ᵗ", "y=3t+C", "y=Ceᵗ/3", "y=3eᵗ+C"], correct: 0, explanation: "Separando dy/y=3dt e integrando, ln|y|=3t+C; portanto y=Ce³ᵗ.", prerequisiteIds: ["pre-log-exp"], errorType: "Solução exponencial de EDO separável", tags: ["edo", "separavel"] }),
+];
+
+export const seedQuestions: Question[] = [
+  ...baseSeedQuestions,
+  ...supplementalQuestions,
 ];
 
 export function getCourse(courseId: string) {

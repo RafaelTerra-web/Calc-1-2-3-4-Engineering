@@ -1,30 +1,136 @@
 import { z } from "zod";
-import { courses, topics } from "@/lib/curriculum";
+import { courses, prerequisites, seedQuestions, topics } from "@/lib/curriculum";
 import type { CourseId, Difficulty, Question } from "@/lib/types";
 
 const courseIds = courses.map((course) => course.id) as [CourseId, ...CourseId[]];
-const topicIds = topics.map((topic) => topic.id);
+const topicById = new Map(topics.map((topic) => [topic.id, topic]));
+const prerequisiteIds = new Set(prerequisites.map((item) => item.id));
+const officialQuestionIds = new Set(seedQuestions.map((question) => question.id));
+
+const requiredText = (label: string, minimum = 1) =>
+  z
+    .string({ error: `${label} deve ser texto.` })
+    .transform((value) => value.trim())
+    .pipe(
+      z.string().min(minimum, {
+        message: `${label} deve ter pelo menos ${minimum} caractere(s).`,
+      }),
+    );
+
+const optionalText = z.preprocess(
+  (value) =>
+    typeof value === "string" && value.trim() === "" ? undefined : value,
+  z.string().transform((value) => value.trim()).optional(),
+);
+
+const stringList = z
+  .array(z.string({ error: "Cada item da lista deve ser texto." }), {
+    error: "O campo deve ser uma lista.",
+  })
+  .transform((values) => values.map((value) => value.trim()).filter(Boolean));
 
 const optionSchema = z.object({
-  id: z.string().min(1),
-  text: z.string().min(1),
+  id: requiredText("O ID da alternativa"),
+  text: requiredText("O texto da alternativa"),
+  misconception: optionalText,
+  prerequisiteId: optionalText,
 });
 
-const questionSchema = z.object({
-  id: z.string().optional(),
-  courseId: z.enum(courseIds),
-  topicId: z.string().refine((value) => topicIds.includes(value), {
-    message: "Topic does not exist in the curriculum.",
-  }),
-  prerequisiteIds: z.array(z.string()).default([]),
-  prompt: z.string().min(8),
-  options: z.array(optionSchema).min(4).max(5),
-  correctOptionId: z.string().min(1),
-  explanation: z.string().min(8),
-  difficulty: z.enum(["basico", "medio", "avancado"]),
-  errorType: z.string().min(3),
-  tags: z.array(z.string()).default([]),
-});
+const questionSchema = z
+  .object({
+    id: optionalText,
+    courseId: z.enum(courseIds, { error: "Curso inválido." }),
+    topicId: requiredText("O tópico"),
+    prerequisiteIds: stringList.default([]),
+    prompt: requiredText("O enunciado", 8),
+    options: z
+      .array(optionSchema, { error: "Alternativas devem formar uma lista." })
+      .min(4, { message: "Informe pelo menos quatro alternativas." })
+      .max(5, { message: "Informe no máximo cinco alternativas." }),
+    correctOptionId: requiredText("O ID da alternativa correta"),
+    explanation: requiredText("A explicação", 8),
+    difficulty: z.enum(["basico", "medio", "avancado"], {
+      error: "Dificuldade inválida: use basico, medio ou avancado.",
+    }),
+    errorType: requiredText("O tipo de erro", 3),
+    tags: stringList.default([]),
+  })
+  .superRefine((question, context) => {
+    if (question.id && officialQuestionIds.has(question.id)) {
+      context.addIssue({
+        code: "custom",
+        path: ["id"],
+        message: "O ID informado é reservado pelo banco oficial de questões.",
+      });
+    }
+    const topic = topicById.get(question.topicId);
+    if (!topic) {
+      context.addIssue({
+        code: "custom",
+        path: ["topicId"],
+        message: "O tópico não existe no currículo.",
+      });
+    } else if (topic.courseId !== question.courseId) {
+      context.addIssue({
+        code: "custom",
+        path: ["topicId"],
+        message: `O tópico ${question.topicId} não pertence ao curso ${question.courseId}.`,
+      });
+    }
+
+    const seenPrerequisites = new Set<string>();
+    for (const prerequisiteId of question.prerequisiteIds) {
+      if (!prerequisiteIds.has(prerequisiteId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["prerequisiteIds"],
+          message: `O pré-requisito ${prerequisiteId} não existe.`,
+        });
+      }
+      if (seenPrerequisites.has(prerequisiteId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["prerequisiteIds"],
+          message: `O pré-requisito ${prerequisiteId} está duplicado.`,
+        });
+      }
+      seenPrerequisites.add(prerequisiteId);
+    }
+
+    const seenOptionIds = new Set<string>();
+    for (const [index, option] of question.options.entries()) {
+      if (seenOptionIds.has(option.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["options", index, "id"],
+          message: `O ID de alternativa ${option.id} está duplicado.`,
+        });
+      }
+      seenOptionIds.add(option.id);
+
+      if (
+        option.prerequisiteId &&
+        !prerequisiteIds.has(option.prerequisiteId)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["options", index, "prerequisiteId"],
+          message: `O pré-requisito ${option.prerequisiteId} da alternativa não existe.`,
+        });
+      }
+    }
+
+    const correctMatches = question.options.filter(
+      (option) => option.id === question.correctOptionId,
+    ).length;
+    if (correctMatches !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["correctOptionId"],
+        message: "A alternativa correta deve existir exatamente uma vez.",
+      });
+    }
+  });
 
 export type ImportResult = {
   questions: Question[];
@@ -47,93 +153,154 @@ export function parseQuestionImport(rawInput: string): ImportResult {
 
 function parseJsonQuestions(input: string): ImportResult {
   try {
-    const parsed = JSON.parse(input);
+    const parsed: unknown = JSON.parse(input);
     const rows = Array.isArray(parsed) ? parsed : [parsed];
 
     return normalizeRows(rows);
   } catch {
-    return { questions: [], errors: ["JSON inválido. Verifique aspas, vírgulas e colchetes."] };
+    return {
+      questions: [],
+      errors: ["JSON inválido. Verifique aspas, vírgulas e colchetes."],
+    };
   }
 }
 
 function parseCsvQuestions(input: string): ImportResult {
-  const lines = input
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const parsed = parseCsvTable(input);
+  if (parsed.error) {
+    return { questions: [], errors: [parsed.error] };
+  }
 
-  if (lines.length < 2) {
+  const rows = parsed.rows.filter((row) => row.some((value) => value !== ""));
+  if (rows.length < 2) {
     return {
       questions: [],
       errors: ["CSV precisa ter cabeçalho e pelo menos uma linha de questão."],
     };
   }
 
-  const headers = splitCsvLine(lines[0]);
-  const rows = lines.slice(1).map((line) => {
-    const values = splitCsvLine(line);
-    const record = Object.fromEntries(
-      headers.map((header, index) => [header, values[index] ?? ""]),
-    );
-
+  const headers = rows[0].map((header, index) =>
+    (index === 0 ? header.replace(/^\uFEFF/, "") : header).trim(),
+  );
+  const duplicateHeaders = headers.filter(
+    (header, index) => headers.indexOf(header) !== index,
+  );
+  if (duplicateHeaders.length > 0) {
     return {
-      id: record.id || undefined,
-      courseId: record.courseId,
-      topicId: record.topicId,
-      prerequisiteIds: splitList(record.prerequisiteIds),
-      prompt: record.prompt,
-      options: [
-        { id: "a", text: record.optionA },
-        { id: "b", text: record.optionB },
-        { id: "c", text: record.optionC },
-        { id: "d", text: record.optionD },
-        record.optionE ? { id: "e", text: record.optionE } : undefined,
-      ].filter(Boolean),
-      correctOptionId: record.correctOptionId,
-      explanation: record.explanation,
-      difficulty: record.difficulty as Difficulty,
-      errorType: record.errorType,
-      tags: splitList(record.tags),
+      questions: [],
+      errors: [
+        `CSV possui coluna(s) repetida(s): ${[...new Set(duplicateHeaders)].join(", ")}.`,
+      ],
     };
-  });
+  }
 
-  return normalizeRows(rows);
+  const requiredHeaders = [
+    "courseId",
+    "topicId",
+    "prompt",
+    "optionA",
+    "optionB",
+    "optionC",
+    "optionD",
+    "correctOptionId",
+    "explanation",
+    "difficulty",
+    "errorType",
+  ];
+  const missingHeaders = requiredHeaders.filter(
+    (required) => !headers.includes(required),
+  );
+  if (missingHeaders.length > 0) {
+    return {
+      questions: [],
+      errors: [`CSV sem coluna(s) obrigatória(s): ${missingHeaders.join(", ")}.`],
+    };
+  }
+
+  const inconsistentRow = rows
+    .slice(1)
+    .findIndex((values) => values.length !== headers.length);
+  if (inconsistentRow >= 0) {
+    return {
+      questions: [],
+      errors: [
+        `Linha ${inconsistentRow + 2}: esperadas ${headers.length} colunas, mas foram encontradas ${rows[inconsistentRow + 1].length}.`,
+      ],
+    };
+  }
+
+  const records = rows.slice(1).map((values) =>
+    Object.fromEntries(
+      headers.map((header, index) => [header, values[index].trim()]),
+    ),
+  );
+  const questionRows = records.map((record) => ({
+    id: record.id || undefined,
+    courseId: record.courseId,
+    topicId: record.topicId,
+    prerequisiteIds: splitList(record.prerequisiteIds),
+    prompt: record.prompt,
+    options: [
+      csvOption(record, "a", "A"),
+      csvOption(record, "b", "B"),
+      csvOption(record, "c", "C"),
+      csvOption(record, "d", "D"),
+      record.optionE ? csvOption(record, "e", "E") : undefined,
+    ].filter((option) => option !== undefined),
+    correctOptionId: record.correctOptionId,
+    explanation: record.explanation,
+    difficulty: record.difficulty as Difficulty,
+    errorType: record.errorType,
+    tags: splitList(record.tags),
+  }));
+
+  return normalizeRows(questionRows, 2);
 }
 
-function normalizeRows(rows: unknown[]): ImportResult {
+function normalizeRows(rows: unknown[], firstLine = 1): ImportResult {
   const questions: Question[] = [];
   const errors: string[] = [];
+  const seenQuestionIds = new Set<string>();
+  const importId = Date.now().toString(36);
 
   rows.forEach((row, index) => {
+    const line = firstLine + index;
     const result = questionSchema.safeParse(row);
 
     if (!result.success) {
       errors.push(
-        `Linha ${index + 1}: ${result.error.issues
+        `Linha ${line}: ${result.error.issues
           .map((issue) => issue.message)
           .join("; ")}`,
       );
       return;
     }
 
-    if (
-      !result.data.options.some(
-        (option) => option.id === result.data.correctOptionId,
-      )
-    ) {
-      errors.push(`Linha ${index + 1}: alternativa correta não existe.`);
+    if (result.data.id && seenQuestionIds.has(result.data.id)) {
+      errors.push(`Linha ${line}: o ID de questão ${result.data.id} está duplicado.`);
       return;
     }
 
-    questions.push({
-      ...result.data,
-      id:
-        result.data.id ??
-        `imported-${Date.now()}-${index}-${result.data.topicId}`,
-    });
+    const id =
+      result.data.id ?? `imported-${importId}-${index}-${result.data.topicId}`;
+    seenQuestionIds.add(id);
+    questions.push({ ...result.data, id });
   });
 
   return { questions, errors };
+}
+
+function csvOption(
+  record: Record<string, string>,
+  id: string,
+  suffix: "A" | "B" | "C" | "D" | "E",
+) {
+  return {
+    id,
+    text: record[`option${suffix}`],
+    misconception: record[`option${suffix}Misconception`] || undefined,
+    prerequisiteId: record[`option${suffix}PrerequisiteId`] || undefined,
+  };
 }
 
 function splitList(value: string | undefined) {
@@ -143,35 +310,64 @@ function splitList(value: string | undefined) {
     .filter(Boolean);
 }
 
-function splitCsvLine(line: string) {
-  const values: string[] = [];
-  let current = "";
+function parseCsvTable(input: string): { rows: string[][]; error?: string } {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
   let quoted = false;
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    const next = input[index + 1];
 
-    if (char === '"' && next === '"') {
-      current += '"';
-      index += 1;
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        field += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        field += char;
+      }
       continue;
     }
 
     if (char === '"') {
-      quoted = !quoted;
+      if (field.trim() !== "") {
+        return {
+          rows: [],
+          error: "CSV inválido: aspas devem começar no início de um campo.",
+        };
+      }
+      quoted = true;
       continue;
     }
 
-    if (char === "," && !quoted) {
-      values.push(current.trim());
-      current = "";
+    if (char === ",") {
+      row.push(field.trim());
+      field = "";
       continue;
     }
 
-    current += char;
+    if (char === "\n" || char === "\r") {
+      if (char === "\r" && next === "\n") {
+        index += 1;
+      }
+      row.push(field.trim());
+      rows.push(row);
+      row = [];
+      field = "";
+      continue;
+    }
+
+    field += char;
   }
 
-  values.push(current.trim());
-  return values;
+  if (quoted) {
+    return { rows: [], error: "CSV inválido: há aspas não fechadas." };
+  }
+
+  row.push(field.trim());
+  rows.push(row);
+  return { rows };
 }

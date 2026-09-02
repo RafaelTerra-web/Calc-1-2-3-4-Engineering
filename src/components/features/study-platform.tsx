@@ -40,15 +40,12 @@ import { buildDiagnostics, getQuestionProgress } from "@/lib/analytics";
 import {
   buildAssessmentNotifications,
   buildOfficialExamStats,
-  calculateTimeLimitSeconds,
+  createDefaultAssessments,
   DEFAULT_DIFFICULTY_TIME_MINUTES,
-  DEFAULT_REFERENCE_DATE,
   describeAssessmentScope,
   formatAssessmentDueDate,
   formatAssessmentWindow,
   getAssessmentStatusLabel,
-  officialAssessments as defaultOfficialAssessments,
-  selectAssessmentQuestions,
 } from "@/lib/assessments";
 import {
   courses,
@@ -85,6 +82,11 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/features/brand-logo";
+import {
+  OfficialExamRunner,
+  type OfficialExamQuestion,
+  type OfficialExamSession,
+} from "@/components/features/official-exam-runner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -140,6 +142,22 @@ type ImportedQuestionRow = {
 
 type OfficialExamAnswerRow = {
   id: string;
+  attempt_id: string;
+  question_id: string;
+  course_id: CourseId;
+  topic_id: string;
+  prerequisite_ids: string[] | null;
+  selected_option_id: string | null;
+  correct_option_id: string;
+  correct: boolean;
+  time_spent_seconds: number;
+  difficulty: "basico" | "medio" | "avancado";
+  error_type: string;
+  answered_at: string;
+};
+
+type PracticeAttemptRow = {
+  id: string;
   question_id: string;
   course_id: CourseId;
   topic_id: string;
@@ -148,9 +166,9 @@ type OfficialExamAnswerRow = {
   correct_option_id: string;
   correct: boolean;
   time_spent_seconds: number;
-  difficulty: "basico" | "medio" | "avancado";
+  difficulty: Question["difficulty"];
   error_type: string;
-  answered_at: string;
+  created_at: string;
 };
 
 type OfficialExamAttemptRow = {
@@ -187,20 +205,34 @@ type AssessmentScheduleRow = {
   required: boolean;
 };
 
-type ExamSession = {
-  attemptId: string;
-  assessment: OfficialAssessment;
-  questions: Question[];
-  selectedAnswers: Record<string, string>;
-  startedAt: number;
-  timeLimitSeconds: number;
+type StartOfficialExamResponse = {
+  attempt: ExamAttempt;
+  questions: OfficialExamQuestion[];
+};
+
+type SubmittedOfficialAnswer = {
+  questionId: string;
+  selectedOptionId: string | null;
+  correctOptionId: string;
+  correct: boolean;
+  timeSpentSeconds?: number;
+  explanation: string;
+  errorType: string;
+  prerequisiteIds: string[];
+};
+
+type SubmitOfficialExamResponse = {
+  attempt: ExamAttempt;
+  answers: SubmittedOfficialAnswer[];
+  score: number;
+  correctCount: number;
 };
 
 type ThemeMode = "light" | "dark";
 
-const INITIAL_EMAIL = "rafaelmodiecai@gmail.com";
 const REMEMBERED_PROFILE_KEY = "calculo-uerj:remembered-profile";
 const THEME_STORAGE_KEY = "calculo-uerj:theme";
+const EXAM_DRAFT_KEY_PREFIX = "calculo-uerj:official-exam-draft:";
 const LEGACY_STORAGE_KEYS = [
   "calculo-uerj:user",
   "calculo-uerj:attempts",
@@ -230,40 +262,53 @@ const importExample = `courseId,topicId,prerequisiteIds,prompt,optionA,optionB,o
 calculo-1,limites,pre-fatoracao|pre-produtos-notaveis,"Calcule lim_{x -> 1} (x^2 - 1)/(x - 1).",0,1,2,"Não existe",c,"Fatore x^2 - 1 = (x - 1)(x + 1) e substitua x = 1.",basico,"Fatoração em limite","limites|fatoracao"`;
 
 export function StudyPlatform({
+  initialRoute,
   initialUser,
   supabaseConfigured,
 }: {
+  initialRoute?: { view?: string; course?: string; topic?: string };
   initialUser: StudyUser | null;
   supabaseConfigured: boolean;
 }) {
+  const initialRouteState = resolveInitialRoute(initialRoute);
   const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<StudyUser | null>(initialUser);
-  const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [officialAnswerAttempts, setOfficialAnswerAttempts] = useState<Attempt[]>(
+    [],
+  );
+  const [practiceAttempts, setPracticeAttempts] = useState<Attempt[]>([]);
   const [examAttempts, setExamAttempts] = useState<ExamAttempt[]>([]);
-  const [assessments, setAssessments] = useState<OfficialAssessment[]>(
-    defaultOfficialAssessments,
+  const [assessments, setAssessments] = useState<OfficialAssessment[]>(() =>
+    createDefaultAssessments(new Date()),
   );
   const [practiceSessionAnswers, setPracticeSessionAnswers] = useState<
     PracticeSessionAnswer[]
   >([]);
-  const [practiceSummaries, setPracticeSummaries] = useState<
-    PracticeSessionSummary[]
-  >([]);
-  const [activeExamSession, setActiveExamSession] = useState<ExamSession | null>(
-    null,
-  );
+  const [activeExamSession, setActiveExamSession] =
+    useState<OfficialExamSession | null>(null);
   const [importedQuestions, setImportedQuestions] = useState<Question[]>([]);
-  const [activeView, setActiveView] = useState<ViewId>("dashboard");
-  const [selectedCourseId, setSelectedCourseId] = useState<CourseId>("calculo-1");
-  const [selectedTopicId, setSelectedTopicId] = useState("limites");
+  const [activeView, setActiveView] = useState<ViewId>(initialRouteState.view);
+  const [selectedCourseId, setSelectedCourseId] = useState<CourseId>(
+    initialRouteState.courseId,
+  );
+  const [selectedTopicId, setSelectedTopicId] = useState(
+    initialRouteState.topicId,
+  );
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [questionStartedAt, setQuestionStartedAt] = useState(() => Date.now());
   const [loadingData, setLoadingData] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [startingAssessmentId, setStartingAssessmentId] = useState<string | null>(
+    null,
+  );
+  const [submittingExam, setSubmittingExam] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
-  const referenceDate = DEFAULT_REFERENCE_DATE;
+  const [referenceDate, setReferenceDate] = useState(() =>
+    new Date().toISOString(),
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -286,6 +331,23 @@ export function StudyPlatform({
   }, []);
 
   useEffect(() => {
+    const timer = window.setInterval(
+      () => setReferenceDate(new Date().toISOString()),
+      60_000,
+    );
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", activeView);
+    url.searchParams.set("course", selectedCourseId);
+    url.searchParams.set("topic", selectedTopicId);
+    window.history.replaceState(window.history.state, "", url);
+  }, [activeView, selectedCourseId, selectedTopicId]);
+
+  useEffect(() => {
     if (!user || !supabase) {
       return;
     }
@@ -296,6 +358,7 @@ export function StudyPlatform({
       setLoadingData(true);
       const [
         officialAnswerResult,
+        practiceAttemptResult,
         officialAttemptResult,
         assessmentScheduleResult,
         importResult,
@@ -303,9 +366,15 @@ export function StudyPlatform({
         supabase
           .from("official_exam_answers")
           .select(
-            "id, question_id, course_id, topic_id, prerequisite_ids, selected_option_id, correct_option_id, correct, time_spent_seconds, difficulty, error_type, answered_at",
+            "id, attempt_id, question_id, course_id, topic_id, prerequisite_ids, selected_option_id, correct_option_id, correct, time_spent_seconds, difficulty, error_type, answered_at",
           )
           .order("answered_at", { ascending: false }),
+        supabase
+          .from("attempts")
+          .select(
+            "id, question_id, course_id, topic_id, prerequisite_ids, selected_option_id, correct_option_id, correct, time_spent_seconds, difficulty, error_type, created_at",
+          )
+          .order("created_at", { ascending: false }),
         supabase
           .from("official_exam_attempts")
           .select(
@@ -329,40 +398,84 @@ export function StudyPlatform({
         return;
       }
 
-      if (
-        officialAnswerResult.error ||
-        officialAttemptResult.error ||
-        assessmentScheduleResult.error ||
-        importResult.error
-      ) {
-        setStatusMessage(
-          "Não consegui carregar seus dados oficiais do Supabase. Rode migrations/seed e verifique RLS.",
-        );
-      } else {
-        setAttempts(
-          ((officialAnswerResult.data ?? []) as OfficialExamAnswerRow[]).map(
-            officialAnswerRowToAttempt,
-          ),
-        );
-        setExamAttempts(
-          ((officialAttemptResult.data ?? []) as OfficialExamAttemptRow[]).map(
-            rowToExamAttempt,
-          ),
-        );
-        setAssessments(
-          ((assessmentScheduleResult.data ?? []) as AssessmentScheduleRow[]).length
-            ? ((assessmentScheduleResult.data ?? []) as AssessmentScheduleRow[]).map(
-                rowToAssessment,
-              )
-            : defaultOfficialAssessments,
-        );
-        setImportedQuestions(
-          ((importResult.data ?? []) as ImportedQuestionRow[]).map(
-            (row) => row.question,
-          ),
-        );
-        setStatusMessage(null);
+      const loadedPracticeAttempts = (
+        (practiceAttemptResult.data ?? []) as PracticeAttemptRow[]
+      ).map(practiceAttemptRowToAttempt);
+      const loadedExamAttempts = (
+        (officialAttemptResult.data ?? []) as OfficialExamAttemptRow[]
+      ).map(rowToExamAttempt);
+      const statusByAttemptId = new Map(
+        loadedExamAttempts.map((attempt) => [attempt.id, attempt.status]),
+      );
+      const loadedOfficialAnswers = (
+        (officialAnswerResult.data ?? []) as OfficialExamAnswerRow[]
+      ).map((row) => ({
+        ...officialAnswerRowToAttempt(row),
+        assessmentStatus: statusByAttemptId.get(row.attempt_id),
+      }));
+      const loadedAssessments = (
+        (assessmentScheduleResult.data ?? []) as AssessmentScheduleRow[]
+      ).map(rowToAssessment);
+      const dataErrors = [
+        officialAnswerResult.error && "respostas oficiais",
+        practiceAttemptResult.error && "histórico de prática",
+        officialAttemptResult.error && "tentativas oficiais",
+        assessmentScheduleResult.error && "agenda de provas",
+        importResult.error && "questões importadas",
+      ].filter(Boolean) as string[];
+
+      setOfficialAnswerAttempts(loadedOfficialAnswers);
+      setPracticeAttempts(loadedPracticeAttempts);
+      setExamAttempts(loadedExamAttempts);
+      setAssessments(
+        loadedAssessments.length
+          ? loadedAssessments
+          : createDefaultAssessments(new Date()),
+      );
+      setImportedQuestions(
+        ((importResult.data ?? []) as ImportedQuestionRow[]).map(
+          (row) => row.question,
+        ),
+      );
+
+      const unfinishedAttempt = loadedExamAttempts.find(
+        (attempt) => attempt.status === "in_progress",
+      );
+      const unfinishedAssessment = unfinishedAttempt
+        ? (loadedAssessments.length
+            ? loadedAssessments
+            : createDefaultAssessments(new Date())
+          ).find((assessment) => assessment.id === unfinishedAttempt.assessmentId)
+        : null;
+
+      if (unfinishedAssessment) {
+        const { data, error } = await supabase.rpc("start_official_exam", {
+          p_assessment_id: unfinishedAssessment.id,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        const response = parseStartOfficialExamResponse(data);
+        if (error || !response) {
+          dataErrors.push("retomada da prova em andamento");
+        } else {
+          setExamAttempts((current) =>
+            upsertExamAttempt(current, response.attempt),
+          );
+          setActiveExamSession(
+            responseToExamSession(response, unfinishedAssessment),
+          );
+          setActiveView("provas");
+        }
       }
+
+      setStatusMessage(
+        dataErrors.length
+          ? `Alguns dados não puderam ser carregados: ${dataErrors.join(", ")}. Tente atualizar a página.`
+          : null,
+      );
 
       setLoadingData(false);
     }
@@ -379,9 +492,26 @@ export function StudyPlatform({
     [importedQuestions],
   );
 
+  const diagnosticAttempts = useMemo(
+    () => [...officialAnswerAttempts, ...practiceAttempts],
+    [officialAnswerAttempts, practiceAttempts],
+  );
+  const practiceSummaries = useMemo<PracticeSessionSummary[]>(
+    () =>
+      practiceAttempts.slice(0, 12).map((attempt) => ({
+        id: `practice-summary-${attempt.id}`,
+        courseId: attempt.courseId,
+        topicId: attempt.topicId,
+        total: 1,
+        correct: attempt.correct ? 1 : 0,
+        completedAt: attempt.createdAt,
+      })),
+    [practiceAttempts],
+  );
+
   const diagnostics = useMemo(
-    () => buildDiagnostics(allQuestions, attempts),
-    [allQuestions, attempts],
+    () => buildDiagnostics(allQuestions, diagnosticAttempts),
+    [allQuestions, diagnosticAttempts],
   );
 
   const examStats = useMemo(
@@ -439,23 +569,41 @@ export function StudyPlatform({
   }
 
   async function signOut() {
-    if (supabase) {
-      await supabase.auth.signOut();
+    if (!supabase || signingOut) {
+      return;
+    }
+
+    setSigningOut(true);
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      setStatusMessage(
+        `Não foi possível sair com segurança: ${error.message}. Tente novamente.`,
+      );
+      setSigningOut(false);
+      return;
     }
 
     setUser(null);
-    setAttempts([]);
+    setOfficialAnswerAttempts([]);
+    setPracticeAttempts([]);
     setExamAttempts([]);
     setPracticeSessionAnswers([]);
-    setPracticeSummaries([]);
     setActiveExamSession(null);
     setImportedQuestions([]);
     setActiveView("dashboard");
     setStatusMessage(null);
+    setSigningOut(false);
   }
 
   async function answerQuestion() {
-    if (!activeQuestion || !selectedOptionId || feedback || !user) {
+    if (
+      !activeQuestion ||
+      !selectedOptionId ||
+      feedback ||
+      !user ||
+      !supabase
+    ) {
       return;
     }
 
@@ -470,23 +618,48 @@ export function StudyPlatform({
       return;
     }
 
-    const attempt: Attempt = {
-      id: createId("attempt"),
-      questionId: activeQuestion.id,
-      courseId: activeQuestion.courseId,
-      topicId: activeQuestion.topicId,
-      prerequisiteIds: activeQuestion.prerequisiteIds,
-      selectedOptionId,
-      correctOptionId: activeQuestion.correctOptionId,
-      correct: selectedOptionId === activeQuestion.correctOptionId,
-      timeSpentSeconds: Math.max(
-        1,
-        Math.round((Date.now() - questionStartedAt) / 1000),
-      ),
-      difficulty: activeQuestion.difficulty,
-      errorType: activeQuestion.errorType,
-      createdAt: new Date().toISOString(),
-    };
+    const correct = selectedOptionId === activeQuestion.correctOptionId;
+    const diagnosticPrerequisiteIds = correct
+      ? activeQuestion.prerequisiteIds
+      : selectedOption.prerequisiteId
+        ? [selectedOption.prerequisiteId]
+        : [];
+    const diagnosticErrorType = correct
+      ? "acerto"
+      : selectedOption.misconception ?? activeQuestion.errorType;
+
+    const { data, error } = await supabase
+      .from("attempts")
+      .insert({
+        user_id: user.id,
+        question_id: activeQuestion.id,
+        course_id: activeQuestion.courseId,
+        topic_id: activeQuestion.topicId,
+        prerequisite_ids: diagnosticPrerequisiteIds,
+        selected_option_id: selectedOptionId,
+        correct_option_id: activeQuestion.correctOptionId,
+        correct,
+        time_spent_seconds: Math.max(
+          1,
+          Math.round((Date.now() - questionStartedAt) / 1000),
+        ),
+        difficulty: activeQuestion.difficulty,
+        error_type: diagnosticErrorType,
+      })
+      .select(
+        "id, question_id, course_id, topic_id, prerequisite_ids, selected_option_id, correct_option_id, correct, time_spent_seconds, difficulty, error_type, created_at",
+      )
+      .single();
+
+    if (error || !data) {
+      setStatusMessage(
+        `Não foi possível salvar esta resposta de prática: ${error?.message ?? "erro desconhecido"}. Tente novamente.`,
+      );
+      return;
+    }
+
+    const attempt = practiceAttemptRowToAttempt(data as PracticeAttemptRow);
+    setPracticeAttempts((current) => [attempt, ...current]);
 
     setPracticeSessionAnswers((current) => [
       ...current.filter((answer) => answer.questionId !== activeQuestion.id),
@@ -497,7 +670,7 @@ export function StudyPlatform({
         selectedOptionId,
         correctOptionId: activeQuestion.correctOptionId,
         correct: attempt.correct,
-        errorType: activeQuestion.errorType,
+        errorType: diagnosticErrorType,
       },
     ]);
     setFeedback({
@@ -506,7 +679,7 @@ export function StudyPlatform({
       explanation: activeQuestion.explanation,
     });
     setStatusMessage(
-      "Treino registrado apenas nesta sessão. Ele não entra no dashboard oficial.",
+      "Resposta de prática salva. Ela melhora o diagnóstico formativo, sem alterar sua nota oficial.",
     );
   }
 
@@ -521,16 +694,6 @@ export function StudyPlatform({
       return;
     }
 
-    const summary: PracticeSessionSummary = {
-      id: createId("practice"),
-      courseId: selectedCourseId,
-      topicId: selectedTopicId,
-      total: topicAnswers.length,
-      correct: topicAnswers.filter((answer) => answer.correct).length,
-      completedAt: new Date().toISOString(),
-    };
-
-    setPracticeSummaries((current) => [summary, ...current].slice(0, 12));
     setPracticeSessionAnswers((current) =>
       current.filter(
         (answer) =>
@@ -539,194 +702,151 @@ export function StudyPlatform({
     );
     resetQuestionState();
     setStatusMessage(
-      "Treino finalizado. Use as correções e vídeos para revisar; sua nota oficial não mudou.",
+      "Treino finalizado. As respostas já estão no diagnóstico formativo; sua nota oficial não mudou.",
     );
   }
 
   async function startExam(assessment: OfficialAssessment) {
-    if (!user || !supabase) {
+    if (!user || !supabase || startingAssessmentId) {
       setStatusMessage("Faça login com Supabase antes de iniciar uma prova.");
       return;
     }
+    setStartingAssessmentId(assessment.id);
+    const { data, error } = await supabase.rpc("start_official_exam", {
+      p_assessment_id: assessment.id,
+    });
+    const response = parseStartOfficialExamResponse(data);
+    setStartingAssessmentId(null);
 
-    const previousQuestionIds = new Set(
-      examAttempts
-        .filter((attempt) => attempt.assessmentId === assessment.id)
-        .flatMap((attempt) => attempt.questionIds),
-    );
-    const examQuestions = selectAssessmentQuestions(
-      assessment,
-      allQuestions,
-      previousQuestionIds,
-    );
-
-    if (examQuestions.length === 0) {
+    if (error || !response) {
       setStatusMessage(
-        "Ainda não há questões suficientes para esta prova. Importe ou cadastre questões.",
+        `Não consegui iniciar a prova: ${error?.message ?? "resposta inválida do servidor"}`,
       );
       return;
     }
 
-    const timeLimitSeconds = calculateTimeLimitSeconds(examQuestions);
-    const { data, error } = await supabase
-      .from("official_exam_attempts")
-      .insert({
-        user_id: user.id,
-        assessment_id: assessment.id,
-        course_id: assessment.courseId,
-        topic_id: assessment.topicId,
-        status: "in_progress",
-        question_count: examQuestions.length,
-        question_ids: examQuestions.map((question) => question.id),
-        time_limit_seconds: timeLimitSeconds,
-      })
-      .select(
-        "id, assessment_id, course_id, topic_id, status, score, correct_count, question_count, question_ids, time_limit_seconds, time_spent_seconds, started_at, submitted_at, created_at",
-      )
-      .single();
-
-    if (error || !data) {
-      setStatusMessage(`Não consegui iniciar a prova: ${error?.message ?? "erro desconhecido"}`);
-      return;
-    }
-
-    const attempt = rowToExamAttempt(data as OfficialExamAttemptRow);
-    setExamAttempts((current) => [attempt, ...current]);
-    setActiveExamSession({
-      attemptId: attempt.id,
-      assessment,
-      questions: examQuestions,
-      selectedAnswers: {},
-      startedAt: Date.now(),
-      timeLimitSeconds,
-    });
+    setExamAttempts((current) => upsertExamAttempt(current, response.attempt));
+    setActiveExamSession(responseToExamSession(response, assessment));
     setActiveView("provas");
-    setStatusMessage(null);
+    setStatusMessage(
+      response.attempt.status === "in_progress"
+        ? "Prova pronta. O relógio usa o horário registrado no servidor."
+        : null,
+    );
   }
 
   function selectExamAnswer(questionId: string, optionId: string) {
-    setActiveExamSession((current) =>
-      current
-        ? {
-            ...current,
-            selectedAnswers: {
-              ...current.selectedAnswers,
-              [questionId]: optionId,
-            },
-          }
-        : current,
-    );
+    setActiveExamSession((current) => {
+      if (!current) return current;
+      const next = {
+        ...current,
+        selectedAnswers: { ...current.selectedAnswers, [questionId]: optionId },
+      };
+      saveExamDraft(next);
+      return next;
+    });
   }
 
-  async function submitExam(forceStatus?: ExamAttemptStatus) {
-    if (!activeExamSession || !user || !supabase) {
-      return;
-    }
-
-    const unanswered = activeExamSession.questions.filter(
-      (question) => !activeExamSession.selectedAnswers[question.id],
-    );
-
-    if (unanswered.length > 0 && !forceStatus) {
-      setStatusMessage("Responda todas as questões antes de entregar a prova.");
-      return;
-    }
-
-    const now = new Date();
-    const timeSpentSeconds = Math.max(
-      1,
-      Math.round((Date.now() - activeExamSession.startedAt) / 1000),
-    );
-    const perQuestionTime = Math.max(
-      1,
-      Math.round(timeSpentSeconds / activeExamSession.questions.length),
-    );
-    const correctCount = activeExamSession.questions.filter(
-      (question) =>
-        activeExamSession.selectedAnswers[question.id] === question.correctOptionId,
-    ).length;
-    const score = Math.round(
-      (correctCount / activeExamSession.questions.length) * 100,
-    );
-    const late = now.getTime() > new Date(activeExamSession.assessment.dueAt).getTime();
-    const status: ExamAttemptStatus =
-      forceStatus ?? (late ? "late" : "submitted");
-
-    const { error: updateError } = await supabase
-      .from("official_exam_attempts")
-      .update({
-        status,
-        score,
-        correct_count: correctCount,
-        question_count: activeExamSession.questions.length,
-        time_spent_seconds: timeSpentSeconds,
-        submitted_at: now.toISOString(),
-      })
-      .eq("id", activeExamSession.attemptId)
-      .eq("user_id", user.id);
-
-    if (updateError) {
-      setStatusMessage(`Não consegui salvar o resultado: ${updateError.message}`);
-      return;
-    }
-
-    const answerRows = activeExamSession.questions.map((question) => {
-      const selectedOptionId =
-        activeExamSession.selectedAnswers[question.id] ?? "__sem_resposta__";
-
-      return {
-        attempt_id: activeExamSession.attemptId,
-        user_id: user.id,
-        question_id: question.id,
-        course_id: question.courseId,
-        topic_id: question.topicId,
-        prerequisite_ids: question.prerequisiteIds,
-        selected_option_id: selectedOptionId,
-        correct_option_id: question.correctOptionId,
-        correct: selectedOptionId === question.correctOptionId,
-        time_spent_seconds: perQuestionTime,
-        difficulty: question.difficulty,
-        error_type: question.errorType,
+  function recordExamQuestionTime(questionId: string, seconds: number) {
+    if (seconds <= 0) return;
+    setActiveExamSession((current) => {
+      if (!current) return current;
+      const next = {
+        ...current,
+        timeSpentByQuestion: {
+          ...current.timeSpentByQuestion,
+          [questionId]: (current.timeSpentByQuestion[questionId] ?? 0) + seconds,
+        },
       };
+      saveExamDraft(next);
+      return next;
     });
+  }
 
-    const { data: insertedAnswers, error: answerError } = await supabase
-      .from("official_exam_answers")
-      .insert(answerRows)
-      .select(
-        "id, question_id, course_id, topic_id, prerequisite_ids, selected_option_id, correct_option_id, correct, time_spent_seconds, difficulty, error_type, answered_at",
-      );
-
-    if (answerError) {
-      setStatusMessage(`Resultado salvo, mas respostas não foram detalhadas: ${answerError.message}`);
-      return;
+  async function submitExam(finalTiming?: { questionId: string; seconds: number }) {
+    if (!activeExamSession || !user || !supabase || submittingExam) {
+      return false;
     }
 
-    setExamAttempts((current) =>
-      current.map((attempt) =>
-        attempt.id === activeExamSession.attemptId
-          ? {
-              ...attempt,
-              status,
-              score,
-              correctCount,
-              questionCount: activeExamSession.questions.length,
-              timeSpentSeconds,
-              submittedAt: now.toISOString(),
-            }
-          : attempt,
-      ),
+    const session: OfficialExamSession = finalTiming
+      ? {
+          ...activeExamSession,
+          timeSpentByQuestion: {
+            ...activeExamSession.timeSpentByQuestion,
+            [finalTiming.questionId]:
+              (activeExamSession.timeSpentByQuestion[finalTiming.questionId] ?? 0) +
+              finalTiming.seconds,
+          },
+        }
+      : activeExamSession;
+    const expired =
+      Date.now() >= session.startedAt + session.timeLimitSeconds * 1000;
+    const unanswered = session.questions.filter(
+      (question) => !session.selectedAnswers[question.id],
     );
-    setAttempts((current) => [
-      ...((insertedAnswers ?? []) as OfficialExamAnswerRow[]).map(
-        officialAnswerRowToAttempt,
-      ),
-      ...current,
+
+    if (unanswered.length > 0 && !expired) {
+      setStatusMessage("Responda todas as questões antes de entregar a prova.");
+      return false;
+    }
+
+    const p_answers = Object.fromEntries(
+      session.questions.map((question) => [
+        question.id,
+        {
+          optionId: session.selectedAnswers[question.id] ?? null,
+          timeSpentSeconds: Math.max(
+            0,
+            Math.round(session.timeSpentByQuestion[question.id] ?? 0),
+          ),
+        },
+      ]),
+    );
+
+    setSubmittingExam(true);
+    const { data, error } = await supabase.rpc("submit_official_exam", {
+      p_attempt_id: session.attemptId,
+      p_answers,
+    });
+    const response = parseSubmitOfficialExamResponse(data);
+    setSubmittingExam(false);
+
+    if (error || !response) {
+      saveExamDraft(session);
+      setStatusMessage(
+        `Não consegui entregar a prova: ${error?.message ?? "resposta inválida do servidor"}. Suas marcações continuam salvas neste navegador.`,
+      );
+      return false;
+    }
+
+    setExamAttempts((current) => upsertExamAttempt(current, response.attempt));
+    setOfficialAnswerAttempts((current) => [
+      ...response.answers.map((answer, index): Attempt => ({
+        id: `${response.attempt.id}:${answer.questionId}`,
+        questionId: answer.questionId,
+        courseId: response.attempt.courseId,
+        topicId: response.attempt.topicId,
+        prerequisiteIds: answer.prerequisiteIds,
+        selectedOptionId: answer.selectedOptionId ?? "__sem_resposta__",
+        correctOptionId: answer.correctOptionId,
+        correct: answer.correct,
+        timeSpentSeconds: answer.timeSpentSeconds ?? 0,
+        difficulty: session.questions[index]?.difficulty ?? "medio",
+        errorType: answer.errorType,
+        createdAt: response.attempt.submittedAt ?? new Date().toISOString(),
+        source: "official_exam",
+        assessmentStatus: response.attempt.status,
+      })),
+      ...current.filter((attempt) => !attempt.id.startsWith(`${response.attempt.id}:`)),
     ]);
+    clearExamDraft(session.attemptId);
     setActiveExamSession(null);
     setStatusMessage(
-      `Prova entregue: ${score}% (${correctCount}/${activeExamSession.questions.length}).`,
+      response.attempt.status === "expired"
+        ? "Tempo esgotado. A tentativa foi registrada como expirada e não entra no domínio pedagógico."
+        : `Prova corrigida no servidor: ${response.score}% (${response.correctCount}/${response.attempt.questionCount}).`,
     );
+    return true;
   }
 
   function moveToNextQuestion() {
@@ -776,6 +896,13 @@ export function StudyPlatform({
 
   async function resetImportedQuestions() {
     if (!user || !supabase) {
+      return;
+    }
+    if (
+      !window.confirm(
+        `Remover permanentemente ${importedQuestions.length} questão(ões) importada(s) da sua conta?`,
+      )
+    ) {
       return;
     }
 
@@ -862,18 +989,24 @@ export function StudyPlatform({
           }
 
           const nextUser = authUserToStudyUser(data.user);
-          const fallbackRole = nextUser.email === INITIAL_EMAIL ? "admin" : "student";
 
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .upsert({
               id: nextUser.id,
               email: nextUser.email,
               name: nextUser.name,
-              role: fallbackRole,
             })
             .select("name, email, role, created_at")
             .single();
+
+          if (profileError || !profile) {
+            await supabase.auth.signOut();
+            return {
+              ok: false,
+              message: `Login aceito, mas o perfil não pôde ser carregado: ${profileError?.message ?? "perfil ausente"}.`,
+            };
+          }
 
           const userWithProfile: StudyUser = {
             ...nextUser,
@@ -941,7 +1074,7 @@ export function StudyPlatform({
 
             {activeView === "dashboard" && (
               <DashboardView
-                attempts={attempts}
+                attempts={diagnosticAttempts}
                 assessments={assessments}
                 assessmentNotifications={assessmentNotifications}
                 diagnostics={diagnostics}
@@ -956,7 +1089,7 @@ export function StudyPlatform({
 
             {activeView === "trilhas" && (
               <TrailsView
-                attempts={attempts}
+                attempts={diagnosticAttempts}
                 diagnostics={diagnostics}
                 onStartPractice={startPractice}
                 questions={allQuestions}
@@ -1009,9 +1142,11 @@ export function StudyPlatform({
                 attempts={examAttempts}
                 notifications={assessmentNotifications}
                 onCancelSession={() => setActiveExamSession(null)}
+                onRecordQuestionTime={recordExamQuestionTime}
                 onSelectAnswer={selectExamAnswer}
                 onStartExam={startExam}
                 onSubmitExam={submitExam}
+                pending={submittingExam}
                 referenceDate={referenceDate}
               />
             )}
@@ -1060,16 +1195,22 @@ function SetupRequiredScreen() {
           <Alert className="rounded-md">
             <Database className="h-4 w-4" aria-hidden="true" />
             <AlertTitle>Variáveis obrigatórias</AlertTitle>
-            <AlertDescription>
-              `NEXT_PUBLIC_SUPABASE_URL`,
-              `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
-              `SUPABASE_SERVICE_ROLE_KEY` e `DATABASE_URL` ou
-              `POSTGRES_URL_NON_POOLING`.
+            <AlertDescription className="min-w-0">
+              <ul className="mt-2 list-inside list-disc space-y-1">
+                <li><code className="break-all">NEXT_PUBLIC_SUPABASE_URL</code></li>
+                <li><code className="break-all">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code></li>
+                <li><code className="break-all">SUPABASE_SERVICE_ROLE_KEY</code></li>
+                <li>
+                  <code className="break-all">DATABASE_URL</code> ou{" "}
+                  <code className="break-all">POSTGRES_URL_NON_POOLING</code>
+                </li>
+              </ul>
             </AlertDescription>
           </Alert>
           <p className="text-sm leading-6 text-muted-foreground">
-            Depois de provisionar, rode `npx vercel env pull .env.local --yes`
-            ou preencha `.env.local` manualmente. A tela de login aparecerá sem
+            Depois de provisionar, rode{" "}
+            <code className="break-all">npx vercel env pull .env.local --yes</code>{" "}
+            ou preencha <code>.env.local</code> manualmente. A tela de login aparecerá sem
             precisar alterar código.
           </p>
         </CardContent>
@@ -1093,7 +1234,7 @@ function SignInScreen({
   theme: ThemeMode;
   onToggleTheme: () => void;
 }) {
-  const [email, setEmail] = useState(INITIAL_EMAIL);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [pending, setPending] = useState(false);
@@ -1131,7 +1272,7 @@ function SignInScreen({
 
   return (
     <main className="grid min-h-screen bg-background lg:grid-cols-[1.1fr_0.9fr]">
-      <section className="relative flex flex-col justify-between gap-10 overflow-hidden px-6 py-8 sm:px-10 lg:px-14">
+      <section className="relative order-2 flex flex-col justify-between gap-10 overflow-hidden px-6 py-8 sm:px-10 lg:order-1 lg:px-14">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
         <div className="flex items-center justify-between gap-4">
           <BrandLogo />
@@ -1176,12 +1317,11 @@ function SignInScreen({
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Usuário inicial planejado:{" "}
-          <span className="font-mono text-foreground">{INITIAL_EMAIL}</span>
+          Conteúdo autoral com provas corrigidas no servidor e prática formativa.
         </p>
       </section>
 
-      <section className="flex items-center justify-center border-t border-border bg-card/50 px-6 py-10 lg:border-l lg:border-t-0">
+      <section className="order-1 flex items-center justify-center border-b border-border bg-card/50 px-6 py-10 lg:order-2 lg:border-b-0 lg:border-l">
         <Card className="w-full max-w-md rounded-md">
           <CardHeader>
             <CardTitle>Acessar plataforma</CardTitle>
@@ -1647,20 +1787,25 @@ function DashboardView({
     (total, item) => total + item.total,
     0,
   );
+  const urgentNotifications = assessmentNotifications.filter(
+    (notification) => notification.daysUntilDue <= 3,
+  );
 
   return (
     <div className="space-y-6">
       <ViewHeader
-        description="Seu painel separa estudo livre de desempenho oficial. Treinos ajudam a revisar; provas oficiais alimentam notas e diagnóstico."
+        description="Seu painel separa estudo livre de notas oficiais. Treinos e provas alimentam o diagnóstico; somente as provas compõem sua nota."
         iconSrc="/icons/nav-dashboard.svg"
         title="Hoje"
       />
 
-      <AssessmentNotificationsPanel
-        assessments={assessments}
-        notifications={assessmentNotifications}
-        onStartExam={onStartExam}
-      />
+      {urgentNotifications.length > 0 && (
+        <AssessmentNotificationsPanel
+          assessments={assessments}
+          notifications={urgentNotifications}
+          onStartExam={onStartExam}
+        />
+      )}
 
       {nextAssessment && (
         <Card className="rounded-md border-primary/35 bg-primary/5">
@@ -1704,7 +1849,7 @@ function DashboardView({
           value={`${examStats.bestScore}%`}
         />
         <MetricCard
-          detail="Apenas erros de provas oficiais entram aqui"
+          detail="Sinais combinados de prática e provas oficiais"
           icon={CircleAlert}
           label="Pontos fracos"
           tone="text-rose-600 dark:text-rose-300"
@@ -1736,10 +1881,10 @@ function DashboardView({
       {attempts.length === 0 && (
         <Alert className="rounded-md">
           <ClipboardList className="h-4 w-4" aria-hidden="true" />
-          <AlertTitle>Nenhuma prova oficial entregue ainda</AlertTitle>
+          <AlertTitle>Nenhum histórico de estudo ainda</AlertTitle>
           <AlertDescription>
-            Você pode treinar à vontade sem prejudicar o painel. Quando entregar
-            uma prova oficial, suas notas, erros e recomendações aparecerão aqui.
+            Comece por uma prática ou prova oficial. As duas geram diagnóstico,
+            mas somente avaliações oficiais compõem sua nota.
           </AlertDescription>
         </Alert>
       )}
@@ -1749,9 +1894,9 @@ function DashboardView({
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <CardTitle>Progresso oficial por disciplina</CardTitle>
+                <CardTitle>Domínio por disciplina</CardTitle>
                 <CardDescription>
-                  Cobertura calculada por provas oficiais e avaliações temáticas.
+                  Cobertura de questões distintas e precisão em práticas e provas.
                 </CardDescription>
               </div>
               <Button onClick={() => onNavigate("trilhas")} size="sm" variant="secondary">
@@ -2043,7 +2188,7 @@ function DashboardBoostPanel({
               value={`${practiceExerciseCount} exercícios`}
             />
             <LearningStep
-              detail="Notas oficiais alimentam o diagnóstico."
+              detail="Prática e provas alimentam o diagnóstico."
               icon={Trophy}
               label="Provas"
               value={`${examStats.submittedAttempts.length} entregues`}
@@ -2373,19 +2518,19 @@ function PracticeView({
   return (
     <div className="space-y-6">
       <ViewHeader
-        description="Escolha uma disciplina e treine sem pressão. Os erros deste treino não entram no dashboard oficial."
+        description="Escolha uma disciplina e treine sem pressão. A prática melhora o diagnóstico, mas nunca altera sua nota oficial."
         iconSrc="/icons/nav-pratica.svg"
         title="Prática"
       />
       <Card className="rounded-md">
         <CardContent className="grid gap-4 p-4 md:grid-cols-3">
           <div className="space-y-2">
-            <Label>Disciplina</Label>
+            <Label htmlFor="practice-course">Disciplina</Label>
             <Select
               value={selectedCourseId}
               onValueChange={(value) => value && onSelectCourse(value as CourseId)}
             >
-              <SelectTrigger>
+              <SelectTrigger id="practice-course">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -2398,12 +2543,12 @@ function PracticeView({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Tópico</Label>
+            <Label htmlFor="practice-topic">Tópico</Label>
             <Select
               value={selectedTopicId}
               onValueChange={(value) => value && onSelectTopic(value)}
             >
-              <SelectTrigger>
+              <SelectTrigger id="practice-topic">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -2432,10 +2577,10 @@ function PracticeView({
       </Card>
       <Alert className="rounded-md border-emerald-500/30">
         <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />
-        <AlertTitle>Treino sem impacto oficial</AlertTitle>
+        <AlertTitle>Treino formativo, nota preservada</AlertTitle>
         <AlertDescription>
-          Use esta área para errar, consultar explicações e revisar vídeos. Só a
-          aba Provas salva desempenho no dashboard.
+          Use esta área para errar, consultar explicações e revisar vídeos. O
+          diagnóstico aprende com a prática; a nota continua restrita às provas.
         </AlertDescription>
       </Alert>
       <div className="grid gap-6 xl:grid-cols-[0.34fr_0.66fr]">
@@ -2568,7 +2713,8 @@ function QuestionCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-3">
+        <fieldset className="grid gap-3">
+          <legend className="sr-only">Escolha uma alternativa</legend>
           {question.options.map((option) => {
             const isSelected = selectedOptionId === option.id;
             const isCorrect = feedback && option.id === question.correctOptionId;
@@ -2576,26 +2722,39 @@ function QuestionCard({
               feedback && isSelected && option.id !== question.correctOptionId;
 
             return (
-              <button
+              <label
                 className={cn(
-                  "flex min-h-14 items-start gap-3 rounded-md border border-border p-4 text-left transition hover:bg-accent",
+                  "flex min-h-14 cursor-pointer items-start gap-3 rounded-md border border-border p-4 text-left transition hover:bg-accent focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+                  (feedback || pending) && "cursor-not-allowed opacity-80",
                   isSelected && "border-primary bg-accent",
                   isCorrect && "border-emerald-500/70 bg-emerald-500/10",
                   isWrong && "border-rose-500/70 bg-rose-500/10",
                 )}
-                disabled={Boolean(feedback) || pending}
                 key={option.id}
-                onClick={() => onSelectOption(option.id)}
-                type="button"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border font-mono text-sm uppercase">
+                <input
+                  checked={isSelected}
+                  className="sr-only"
+                  disabled={Boolean(feedback) || pending}
+                  name={`practice-${question.id}`}
+                  onChange={() => onSelectOption(option.id)}
+                  type="radio"
+                  value={option.id}
+                />
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border font-mono text-sm uppercase",
+                    isSelected && "border-primary bg-primary text-primary-foreground",
+                  )}
+                >
                   {option.id}
                 </span>
                 <span className="leading-6">{option.text}</span>
-              </button>
+              </label>
             );
           })}
-        </div>
+        </fieldset>
 
         {feedback && (
           <Alert
@@ -2807,28 +2966,34 @@ function ExamsView({
   attempts,
   notifications,
   onCancelSession,
+  onRecordQuestionTime,
   onSelectAnswer,
   onStartExam,
   onSubmitExam,
+  pending,
   referenceDate,
 }: {
-  activeSession: ExamSession | null;
+  activeSession: OfficialExamSession | null;
   assessments: OfficialAssessment[];
   attempts: ExamAttempt[];
   notifications: AssessmentNotification[];
   onCancelSession: () => void;
+  onRecordQuestionTime: (questionId: string, seconds: number) => void;
   onSelectAnswer: (questionId: string, optionId: string) => void;
   onStartExam: (assessment: OfficialAssessment) => void;
-  onSubmitExam: (forceStatus?: ExamAttemptStatus) => Promise<void>;
+  onSubmitExam: (finalTiming?: { questionId: string; seconds: number }) => Promise<boolean>;
+  pending: boolean;
   referenceDate: string;
 }) {
   const examStats = buildOfficialExamStats(assessments, attempts, referenceDate);
 
   if (activeSession) {
     return (
-      <ExamRunner
+      <OfficialExamRunner
+        pending={pending}
         session={activeSession}
         onCancelSession={onCancelSession}
+        onRecordQuestionTime={onRecordQuestionTime}
         onSelectAnswer={onSelectAnswer}
         onSubmitExam={onSubmitExam}
       />
@@ -2912,10 +3077,21 @@ function ExamAssessmentCard({
     (attempt) => attempt.assessmentId === assessment.id,
   );
   const bestAttempt = assessmentAttempts
-    .filter((attempt) => attempt.status !== "in_progress")
+    .filter(
+      (attempt) =>
+        attempt.status === "submitted" || attempt.status === "late",
+    )
     .sort((left, right) => right.score - left.score)[0];
-  const attemptsLeft = Math.max(0, assessment.maxAttempts - assessmentAttempts.length);
-  const disabled = status === "expirada" || attemptsLeft === 0;
+  const inProgress = assessmentAttempts.find(
+    (attempt) => attempt.status === "in_progress",
+  );
+  const usedAttempts = assessmentAttempts.filter(
+    (attempt) => attempt.status !== "in_progress",
+  ).length;
+  const attemptsLeft = Math.max(0, assessment.maxAttempts - usedAttempts);
+  const disabled =
+    !inProgress &&
+    (status === "expirada" || status === "programada" || attemptsLeft === 0);
 
   return (
     <Card className="rounded-md">
@@ -2960,127 +3136,11 @@ function ExamAssessmentCard({
           disabled={disabled}
           onClick={() => onStartExam(assessment)}
         >
-          {bestAttempt ? "Refazer prova" : "Iniciar prova"}
+          {inProgress ? "Retomar prova" : bestAttempt ? "Refazer prova" : "Iniciar prova"}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>
       </CardContent>
     </Card>
-  );
-}
-
-function ExamRunner({
-  session,
-  onCancelSession,
-  onSelectAnswer,
-  onSubmitExam,
-}: {
-  session: ExamSession;
-  onCancelSession: () => void;
-  onSelectAnswer: (questionId: string, optionId: string) => void;
-  onSubmitExam: (forceStatus?: ExamAttemptStatus) => Promise<void>;
-}) {
-  const [now, setNow] = useState(session.startedAt);
-  const [pending, setPending] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const elapsedSeconds = Math.max(0, Math.round((now - session.startedAt) / 1000));
-  const remainingSeconds = Math.max(0, session.timeLimitSeconds - elapsedSeconds);
-  const answeredCount = Object.keys(session.selectedAnswers).length;
-  const allAnswered = answeredCount === session.questions.length;
-  const expired = remainingSeconds === 0;
-
-  async function handleSubmit(status?: ExamAttemptStatus) {
-    setPending(true);
-    await onSubmitExam(status);
-    setPending(false);
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-md border border-border bg-card p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">Prova em andamento</p>
-          <h1 className="text-2xl font-semibold">{session.assessment.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {answeredCount}/{session.questions.length} questões respondidas
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge className="rounded-md" variant={expired ? "destructive" : "secondary"}>
-            <Timer className="mr-1 h-4 w-4" aria-hidden="true" />
-            {formatDuration(remainingSeconds)}
-          </Badge>
-          <Button onClick={onCancelSession} variant="outline">
-            Sair da prova
-          </Button>
-          <Button
-            disabled={pending || (!allAnswered && !expired)}
-            onClick={() => handleSubmit(expired ? "expired" : undefined)}
-          >
-            {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            Entregar prova
-          </Button>
-        </div>
-      </div>
-
-      {expired && (
-        <Alert className="rounded-md" variant="destructive">
-          <CircleAlert className="h-4 w-4" aria-hidden="true" />
-          <AlertTitle>Tempo esgotado</AlertTitle>
-          <AlertDescription>
-            Entregue a prova para salvar o resultado com as respostas já marcadas.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="space-y-4">
-        {session.questions.map((question, index) => (
-          <Card className="rounded-md" key={question.id}>
-            <CardHeader>
-              <div className="flex flex-wrap gap-2">
-                <Badge className="rounded-md" variant="secondary">
-                  Questão {index + 1}
-                </Badge>
-                <Badge className="rounded-md" variant="outline">
-                  {question.difficulty}
-                </Badge>
-                <Badge className="rounded-md" variant="outline">
-                  {getTopic(question.topicId)?.title}
-                </Badge>
-              </div>
-              <CardTitle className="leading-8">{question.prompt}</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              {question.options.map((option) => {
-                const selected = session.selectedAnswers[question.id] === option.id;
-
-                return (
-                  <button
-                    className={cn(
-                      "flex min-h-14 items-start gap-3 rounded-md border border-border p-4 text-left transition hover:bg-accent",
-                      selected && "border-primary bg-accent",
-                    )}
-                    disabled={expired || pending}
-                    key={option.id}
-                    onClick={() => onSelectAnswer(question.id, option.id)}
-                    type="button"
-                  >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border font-mono text-sm uppercase">
-                      {option.id}
-                    </span>
-                    <span className="leading-6">{option.text}</span>
-                  </button>
-                );
-              })}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -3166,6 +3226,7 @@ function AdminAssessmentCard({
 }) {
   const [draft, setDraft] = useState(assessment);
   const [pending, setPending] = useState(false);
+  const fieldId = (name: string) => `${assessment.id}-${name}`;
 
   async function handleSave() {
     setPending(true);
@@ -3182,8 +3243,9 @@ function AdminAssessmentCard({
       <CardContent className="grid gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Disponível em</Label>
+            <Label htmlFor={fieldId("available-at")}>Disponível em</Label>
             <Input
+              id={fieldId("available-at")}
               type="datetime-local"
               value={toDateTimeLocalValue(draft.availableAt)}
               onChange={(event) =>
@@ -3195,8 +3257,9 @@ function AdminAssessmentCard({
             />
           </div>
           <div className="space-y-2">
-            <Label>Prazo final</Label>
+            <Label htmlFor={fieldId("due-at")}>Prazo final</Label>
             <Input
+              id={fieldId("due-at")}
               type="datetime-local"
               value={toDateTimeLocalValue(draft.dueAt)}
               onChange={(event) =>
@@ -3208,8 +3271,9 @@ function AdminAssessmentCard({
             />
           </div>
           <div className="space-y-2">
-            <Label>Questões</Label>
+            <Label htmlFor={fieldId("question-count")}>Questões</Label>
             <Input
+              id={fieldId("question-count")}
               min={1}
               type="number"
               value={draft.questionCount}
@@ -3222,8 +3286,9 @@ function AdminAssessmentCard({
             />
           </div>
           <div className="space-y-2">
-            <Label>Nota mínima (%)</Label>
+            <Label htmlFor={fieldId("minimum-score")}>Nota mínima (%)</Label>
             <Input
+              id={fieldId("minimum-score")}
               max={100}
               min={0}
               type="number"
@@ -3237,8 +3302,9 @@ function AdminAssessmentCard({
             />
           </div>
           <div className="space-y-2">
-            <Label>Tentativas</Label>
+            <Label htmlFor={fieldId("max-attempts")}>Tentativas</Label>
             <Input
+              id={fieldId("max-attempts")}
               min={1}
               type="number"
               value={draft.maxAttempts}
@@ -3251,7 +3317,7 @@ function AdminAssessmentCard({
             />
           </div>
           <div className="space-y-2">
-            <Label>Após o prazo</Label>
+            <Label htmlFor={fieldId("deadline-policy")}>Após o prazo</Label>
             <Select
               value={draft.deadlinePolicy}
               onValueChange={(value) =>
@@ -3261,7 +3327,7 @@ function AdminAssessmentCard({
                 }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger id={fieldId("deadline-policy")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -3946,7 +4012,7 @@ function EmptyState({
   );
 }
 
-function officialAnswerRowToAttempt(row: OfficialExamAnswerRow): Attempt {
+function practiceAttemptRowToAttempt(row: PracticeAttemptRow): Attempt {
   return {
     id: row.id,
     questionId: row.question_id,
@@ -3959,7 +4025,176 @@ function officialAnswerRowToAttempt(row: OfficialExamAnswerRow): Attempt {
     timeSpentSeconds: row.time_spent_seconds,
     difficulty: row.difficulty,
     errorType: row.error_type,
+    createdAt: row.created_at,
+    source: "practice",
+  };
+}
+
+function parseStartOfficialExamResponse(
+  value: unknown,
+): StartOfficialExamResponse | null {
+  if (!isRecord(value) || !Array.isArray(value.questions)) return null;
+  const attempt = parseRpcExamAttempt(value.attempt);
+  if (!attempt) return null;
+  const questions = value.questions.filter(isOfficialExamQuestion);
+  return questions.length === attempt.questionCount
+    ? { attempt, questions }
+    : null;
+}
+
+function parseSubmitOfficialExamResponse(
+  value: unknown,
+): SubmitOfficialExamResponse | null {
+  if (!isRecord(value) || !Array.isArray(value.answers)) return null;
+  const attempt = parseRpcExamAttempt(value.attempt);
+  if (!attempt || typeof value.score !== "number" || typeof value.correctCount !== "number") {
+    return null;
+  }
+  const answers = value.answers.filter(isSubmittedOfficialAnswer);
+  return answers.length === attempt.questionCount
+    ? { attempt, answers, score: value.score, correctCount: value.correctCount }
+    : null;
+}
+
+function parseRpcExamAttempt(value: unknown): ExamAttempt | null {
+  if (!isRecord(value)) return null;
+  const statuses: ExamAttemptStatus[] = ["in_progress", "submitted", "expired", "late"];
+  if (
+    typeof value.id !== "string" ||
+    typeof value.assessmentId !== "string" ||
+    typeof value.courseId !== "string" ||
+    typeof value.topicId !== "string" ||
+    !statuses.includes(value.status as ExamAttemptStatus) ||
+    typeof value.score !== "number" ||
+    typeof value.correctCount !== "number" ||
+    typeof value.questionCount !== "number" ||
+    typeof value.timeLimitSeconds !== "number" ||
+    typeof value.timeSpentSeconds !== "number" ||
+    !Array.isArray(value.questionIds) ||
+    typeof value.startedAt !== "string" ||
+    typeof value.createdAt !== "string"
+  ) return null;
+  return value as unknown as ExamAttempt;
+}
+
+function isOfficialExamQuestion(value: unknown): value is OfficialExamQuestion {
+  return Boolean(
+    isRecord(value) &&
+      typeof value.id === "string" &&
+      typeof value.courseId === "string" &&
+      typeof value.topicId === "string" &&
+      typeof value.prompt === "string" &&
+      Array.isArray(value.options) &&
+      value.options.length >= 2 &&
+      value.options.every(
+        (option) => isRecord(option) && typeof option.id === "string" && typeof option.text === "string",
+      ),
+  );
+}
+
+function isSubmittedOfficialAnswer(value: unknown): value is SubmittedOfficialAnswer {
+  return Boolean(
+    isRecord(value) &&
+      typeof value.questionId === "string" &&
+      (typeof value.selectedOptionId === "string" || value.selectedOptionId === null) &&
+      typeof value.correctOptionId === "string" &&
+      typeof value.correct === "boolean" &&
+      typeof value.explanation === "string" &&
+      typeof value.errorType === "string" &&
+      Array.isArray(value.prerequisiteIds),
+  );
+}
+
+function responseToExamSession(
+  response: StartOfficialExamResponse,
+  assessment: OfficialAssessment,
+): OfficialExamSession {
+  const draft = readExamDraft(response.attempt.id);
+  const questionIds = new Set(response.questions.map((question) => question.id));
+  const selectedAnswers = Object.fromEntries(
+    Object.entries(draft?.selectedAnswers ?? {}).filter(([questionId, optionId]) => {
+      const question = response.questions.find((item) => item.id === questionId);
+      return questionIds.has(questionId) && question?.options.some((option) => option.id === optionId);
+    }),
+  );
+  const timeSpentByQuestion = Object.fromEntries(
+    Object.entries(draft?.timeSpentByQuestion ?? {}).filter(
+      ([questionId, seconds]) => questionIds.has(questionId) && Number.isFinite(seconds) && seconds >= 0,
+    ),
+  );
+  return {
+    attemptId: response.attempt.id,
+    assessment,
+    questions: response.questions,
+    selectedAnswers,
+    timeSpentByQuestion,
+    startedAt: new Date(response.attempt.startedAt).getTime(),
+    timeLimitSeconds: response.attempt.timeLimitSeconds,
+  };
+}
+
+function upsertExamAttempt(current: ExamAttempt[], incoming: ExamAttempt) {
+  return [incoming, ...current.filter((attempt) => attempt.id !== incoming.id)];
+}
+
+function saveExamDraft(session: OfficialExamSession) {
+  try {
+    window.localStorage.setItem(
+      `${EXAM_DRAFT_KEY_PREFIX}${session.attemptId}`,
+      JSON.stringify({
+        selectedAnswers: session.selectedAnswers,
+        timeSpentByQuestion: session.timeSpentByQuestion,
+      }),
+    );
+  } catch {
+    return;
+  }
+}
+
+function readExamDraft(attemptId: string) {
+  try {
+    const value = window.localStorage.getItem(`${EXAM_DRAFT_KEY_PREFIX}${attemptId}`);
+    if (!value) return null;
+    const parsed: unknown = JSON.parse(value);
+    if (!isRecord(parsed) || !isRecord(parsed.selectedAnswers) || !isRecord(parsed.timeSpentByQuestion)) {
+      return null;
+    }
+    return parsed as {
+      selectedAnswers: Record<string, string>;
+      timeSpentByQuestion: Record<string, number>;
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearExamDraft(attemptId: string) {
+  try {
+    window.localStorage.removeItem(`${EXAM_DRAFT_KEY_PREFIX}${attemptId}`);
+  } catch {
+    return;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function officialAnswerRowToAttempt(row: OfficialExamAnswerRow): Attempt {
+  return {
+    id: row.id,
+    questionId: row.question_id,
+    courseId: row.course_id,
+    topicId: row.topic_id,
+    prerequisiteIds: row.prerequisite_ids ?? [],
+    selectedOptionId: row.selected_option_id ?? "__sem_resposta__",
+    correctOptionId: row.correct_option_id,
+    correct: row.correct,
+    timeSpentSeconds: row.time_spent_seconds,
+    difficulty: row.difficulty,
+    errorType: row.error_type,
     createdAt: row.answered_at,
+    source: "official_exam",
   };
 }
 
@@ -4007,13 +4242,13 @@ function authUserToStudyUser(authUser: {
   created_at?: string;
   user_metadata?: { name?: string; full_name?: string };
 }): StudyUser {
-  const email = authUser.email ?? INITIAL_EMAIL;
+  const email = authUser.email ?? "";
 
   return {
     id: authUser.id,
     name: authUser.user_metadata?.name ?? authUser.user_metadata?.full_name ?? email,
     email,
-    role: email === INITIAL_EMAIL ? "admin" : "student",
+    role: "student",
     createdAt: authUser.created_at ?? new Date().toISOString(),
   };
 }
@@ -4074,12 +4309,6 @@ function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
-function formatDuration(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
 function toDateTimeLocalValue(value: string) {
   const date = new Date(value);
   const offset = date.getTimezoneOffset() * 60_000;
@@ -4099,12 +4328,22 @@ function initials(name: string) {
     .join("");
 }
 
-function createId(prefix: string) {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${prefix}-${crypto.randomUUID()}`;
-  }
+function resolveInitialRoute(route?: {
+  view?: string;
+  course?: string;
+  topic?: string;
+}) {
+  const view = navItems.some((item) => item.id === route?.view)
+    ? (route?.view as ViewId)
+    : "dashboard";
+  const courseId =
+    courses.find((course) => course.id === route?.course)?.id ?? "calculo-1";
+  const courseTopics = getTopicsByCourse(courseId);
+  const topicId = courseTopics.some((topic) => topic.id === route?.topic)
+    ? route!.topic!
+    : courseTopics[0]?.id ?? "limites";
 
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return { view, courseId, topicId };
 }
 
 function dedupeQuestions(current: Question[], incoming: Question[]) {

@@ -15,9 +15,18 @@ export const DEFAULT_DIFFICULTY_TIME_MINUTES: DifficultyTimeSettings = {
   avancado: 7,
 };
 
-export const DEFAULT_REFERENCE_DATE = "2026-07-06T00:00:00-03:00";
+/** Mantido para consumidores antigos; representa o instante real de carga. */
+export const DEFAULT_REFERENCE_DATE = new Date().toISOString();
 
-export const officialAssessments: OfficialAssessment[] = [
+type AssessmentTemplate = Omit<
+  OfficialAssessment,
+  "availableAt" | "dueAt"
+> & {
+  availableAfterDays: number;
+  dueAfterDays: number;
+};
+
+const assessmentTemplates: AssessmentTemplate[] = [
   {
     id: "exam-pre-fatoracao",
     title: "Prova temática: Fatoração",
@@ -29,8 +38,8 @@ export const officialAssessments: OfficialAssessment[] = [
     difficultyMix: { basico: 3, medio: 1 },
     minimumScore: 70,
     maxAttempts: 3,
-    availableAt: "2026-07-06T00:00:00-03:00",
-    dueAt: "2026-07-14T23:59:00-03:00",
+    availableAfterDays: 0,
+    dueAfterDays: 8,
     deadlinePolicy: "late",
     required: true,
   },
@@ -45,8 +54,8 @@ export const officialAssessments: OfficialAssessment[] = [
     difficultyMix: { basico: 2, medio: 2, avancado: 1 },
     minimumScore: 70,
     maxAttempts: 3,
-    availableAt: "2026-07-06T00:00:00-03:00",
-    dueAt: "2026-07-20T23:59:00-03:00",
+    availableAfterDays: 0,
+    dueAfterDays: 14,
     deadlinePolicy: "late",
     required: true,
   },
@@ -61,8 +70,8 @@ export const officialAssessments: OfficialAssessment[] = [
     difficultyMix: { basico: 2, medio: 2, avancado: 1 },
     minimumScore: 70,
     maxAttempts: 3,
-    availableAt: "2026-07-10T00:00:00-03:00",
-    dueAt: "2026-07-27T23:59:00-03:00",
+    availableAfterDays: 4,
+    dueAfterDays: 21,
     deadlinePolicy: "late",
     required: true,
   },
@@ -77,8 +86,8 @@ export const officialAssessments: OfficialAssessment[] = [
     difficultyMix: { basico: 2, medio: 3, avancado: 1 },
     minimumScore: 70,
     maxAttempts: 2,
-    availableAt: "2026-07-17T00:00:00-03:00",
-    dueAt: "2026-08-03T23:59:00-03:00",
+    availableAfterDays: 11,
+    dueAfterDays: 28,
     deadlinePolicy: "available",
     required: true,
   },
@@ -93,8 +102,8 @@ export const officialAssessments: OfficialAssessment[] = [
     difficultyMix: { basico: 2, medio: 2, avancado: 2 },
     minimumScore: 70,
     maxAttempts: 2,
-    availableAt: "2026-07-24T00:00:00-03:00",
-    dueAt: "2026-08-10T23:59:00-03:00",
+    availableAfterDays: 18,
+    dueAfterDays: 35,
     deadlinePolicy: "available",
     required: true,
   },
@@ -109,12 +118,32 @@ export const officialAssessments: OfficialAssessment[] = [
     difficultyMix: { basico: 2, medio: 2, avancado: 2 },
     minimumScore: 70,
     maxAttempts: 2,
-    availableAt: "2026-07-31T00:00:00-03:00",
-    dueAt: "2026-08-17T23:59:00-03:00",
+    availableAfterDays: 25,
+    dueAfterDays: 42,
     deadlinePolicy: "available",
     required: true,
   },
 ];
+
+/**
+ * Gera um calendário relativo ao início da oferta da turma.
+ * A data de referência é tratada como dia civil local, evitando um semestre
+ * preso a datas antigas e preservando as janelas originalmente planejadas.
+ */
+export function createDefaultAssessments(reference: Date = new Date()) {
+  const referenceDay = startOfLocalDay(reference);
+
+  return assessmentTemplates.map(
+    ({ availableAfterDays, dueAfterDays, ...assessment }) => ({
+      ...assessment,
+      availableAt: addLocalDays(referenceDay, availableAfterDays, false),
+      dueAt: addLocalDays(referenceDay, dueAfterDays, true),
+    }),
+  );
+}
+
+export const officialAssessments: OfficialAssessment[] =
+  createDefaultAssessments();
 
 export function getAssessment(id: string) {
   return officialAssessments.find((assessment) => assessment.id === id);
@@ -145,7 +174,13 @@ export function selectAssessmentQuestions(
   assessment: OfficialAssessment,
   questions: Question[],
   recentlySeenQuestionIds = new Set<string>(),
+  random: () => number = Math.random,
 ) {
+  const validation = validateAssessmentQuestionPool(assessment, questions);
+  if (!validation.valid) {
+    return [];
+  }
+
   const topicQuestions = questions.filter(
     (question) =>
       question.courseId === assessment.courseId &&
@@ -164,50 +199,83 @@ export function selectAssessmentQuestions(
         topicQuestions.filter((question) => question.difficulty === difficulty),
         requested,
         recentlySeenQuestionIds,
+        random,
       ),
     );
   }
 
-  if (selected.length < assessment.questionCount) {
-    selected.push(
-      ...takeQuestions(
-        topicQuestions.filter(
-          (question) => !selected.some((item) => item.id === question.id),
-        ),
-        assessment.questionCount - selected.length,
-        recentlySeenQuestionIds,
-      ),
+  return shuffleQuestions(selected, random);
+}
+
+export type AssessmentPoolValidation = {
+  valid: boolean;
+  errors: string[];
+  availableByDifficulty: Record<Difficulty, number>;
+};
+
+/** Explica por que uma prova pode ou não ser montada sem fugir do tópico. */
+export function validateAssessmentQuestionPool(
+  assessment: OfficialAssessment,
+  questions: Question[],
+): AssessmentPoolValidation {
+  const topicQuestions = questions.filter(
+    (question) =>
+      question.courseId === assessment.courseId &&
+      question.topicId === assessment.topicId,
+  );
+  const availableByDifficulty: Record<Difficulty, number> = {
+    basico: 0,
+    medio: 0,
+    avancado: 0,
+  };
+
+  for (const question of topicQuestions) {
+    availableByDifficulty[question.difficulty] += 1;
+  }
+
+  const errors: string[] = [];
+  const requestedTotal = (
+    ["basico", "medio", "avancado"] satisfies Difficulty[]
+  ).reduce(
+    (total, difficulty) => total + (assessment.difficultyMix[difficulty] ?? 0),
+    0,
+  );
+
+  if (requestedTotal !== assessment.questionCount) {
+    errors.push(
+      `O mix de dificuldade soma ${requestedTotal}, mas a avaliação exige ${assessment.questionCount} questões.`,
     );
   }
 
-  if (selected.length < assessment.questionCount) {
-    selected.push(
-      ...takeQuestions(
-        questions.filter(
-          (question) =>
-            question.courseId === assessment.courseId &&
-            !selected.some((item) => item.id === question.id),
-        ),
-        assessment.questionCount - selected.length,
-        recentlySeenQuestionIds,
-      ),
+  for (const difficulty of ["basico", "medio", "avancado"] satisfies Difficulty[]) {
+    const requested = assessment.difficultyMix[difficulty] ?? 0;
+    const available = availableByDifficulty[difficulty];
+    if (available < requested) {
+      errors.push(
+        `Há ${available} questão(ões) de nível ${difficulty}, mas o mix exige ${requested}.`,
+      );
+    }
+  }
+
+  if (topicQuestions.length < assessment.questionCount) {
+    errors.push(
+      `O tópico possui ${topicQuestions.length} questão(ões), abaixo das ${assessment.questionCount} exigidas.`,
     );
   }
 
-  return selected.slice(0, assessment.questionCount);
+  return { valid: errors.length === 0, errors, availableByDifficulty };
 }
 
 export function buildOfficialExamStats(
   assessments: OfficialAssessment[],
   attempts: ExamAttempt[],
-  referenceDate = DEFAULT_REFERENCE_DATE,
+  referenceDate: string | Date = new Date(),
 ): OfficialExamStats {
   const submittedAttempts = attempts
     .filter(
       (attempt) =>
         attempt.status === "submitted" ||
-        attempt.status === "late" ||
-        attempt.status === "expired",
+        attempt.status === "late",
     )
     .sort(
       (left, right) =>
@@ -228,7 +296,7 @@ export function buildOfficialExamStats(
   const completedAssessmentIds = new Set(
     submittedAttempts.map((attempt) => attempt.assessmentId),
   );
-  const now = new Date(referenceDate).getTime();
+  const now = toDate(referenceDate).getTime();
   const availableOrUpcoming = assessments
     .filter((assessment) => !completedAssessmentIds.has(assessment.id))
     .sort((left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime());
@@ -254,21 +322,20 @@ export function buildOfficialExamStats(
 export function getAssessmentStatusLabel(
   assessment: OfficialAssessment,
   attempts: ExamAttempt[],
-  referenceDate = DEFAULT_REFERENCE_DATE,
+  referenceDate: string | Date = new Date(),
 ) {
   const submitted = attempts.some(
     (attempt) =>
       attempt.assessmentId === assessment.id &&
       (attempt.status === "submitted" ||
-        attempt.status === "late" ||
-        attempt.status === "expired"),
+        attempt.status === "late"),
   );
 
   if (submitted) {
     return "entregue";
   }
 
-  const now = new Date(referenceDate).getTime();
+  const now = toDate(referenceDate).getTime();
   const availableAt = new Date(assessment.availableAt).getTime();
   const dueAt = new Date(assessment.dueAt).getTime();
 
@@ -286,15 +353,14 @@ export function getAssessmentStatusLabel(
 export function buildAssessmentNotifications(
   assessments: OfficialAssessment[],
   attempts: ExamAttempt[],
-  referenceDate = DEFAULT_REFERENCE_DATE,
+  referenceDate: string | Date = new Date(),
 ): AssessmentNotification[] {
   const completedAssessmentIds = new Set(
     attempts
       .filter(
         (attempt) =>
           attempt.status === "submitted" ||
-          attempt.status === "late" ||
-          attempt.status === "expired",
+          attempt.status === "late",
       )
       .map((attempt) => attempt.assessmentId),
   );
@@ -372,12 +438,15 @@ function takeQuestions(
   questions: Question[],
   amount: number,
   recentlySeenQuestionIds: Set<string>,
+  random: () => number,
 ) {
   const fresh = shuffleQuestions(
     questions.filter((question) => !recentlySeenQuestionIds.has(question.id)),
+    random,
   );
   const repeated = shuffleQuestions(
     questions.filter((question) => recentlySeenQuestionIds.has(question.id)),
+    random,
   );
 
   return [...fresh, ...repeated].slice(0, amount);
@@ -410,24 +479,66 @@ function buildAssessmentNotificationMessage(
   return `Faltam ${daysUntilDue} dias para a ${assessment.title}.`;
 }
 
-function getCalendarDayDistance(referenceDate: string, targetDate: string) {
-  const dayInMs = 24 * 60 * 60 * 1000;
-  const reference = new Date(referenceDate);
-  const target = new Date(targetDate);
-  const referenceDay = new Date(
+function getCalendarDayDistance(
+  referenceDate: string | Date,
+  targetDate: string | Date,
+) {
+  const reference = toDate(referenceDate);
+  const target = toDate(targetDate);
+  const referenceDay = Date.UTC(
     reference.getFullYear(),
     reference.getMonth(),
     reference.getDate(),
-  ).getTime();
-  const targetDay = new Date(
+  );
+  const targetDay = Date.UTC(
     target.getFullYear(),
     target.getMonth(),
     target.getDate(),
-  ).getTime();
+  );
 
-  return Math.round((targetDay - referenceDay) / dayInMs);
+  return Math.round((targetDay - referenceDay) / (24 * 60 * 60 * 1000));
 }
 
-function shuffleQuestions(questions: Question[]) {
-  return [...questions].sort(() => Math.random() - 0.5);
+/** Fisher–Yates imparcial, com fonte aleatória injetável para testes. */
+export function shuffleQuestions<T>(
+  questions: readonly T[],
+  random: () => number = Math.random,
+) {
+  const shuffled = [...questions];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const sample = random();
+    if (!Number.isFinite(sample) || sample < 0 || sample >= 1) {
+      throw new RangeError("A fonte aleatória deve retornar um número em [0, 1).");
+    }
+
+    const swapIndex = Math.floor(sample * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+
+  return shuffled;
+}
+
+function startOfLocalDay(reference: Date) {
+  const date = new Date(reference);
+  if (Number.isNaN(date.getTime())) {
+    throw new RangeError("A data de referência da avaliação é inválida.");
+  }
+
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function toDate(value: string | Date) {
+  return value instanceof Date ? new Date(value.getTime()) : new Date(value);
+}
+
+function addLocalDays(reference: Date, amount: number, endOfDay: boolean) {
+  const date = new Date(reference);
+  date.setDate(date.getDate() + amount);
+  date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, 0, 0);
+  return date.toISOString();
 }

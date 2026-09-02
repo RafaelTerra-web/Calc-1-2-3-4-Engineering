@@ -5,7 +5,12 @@ import type { StudyUser } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
   const supabaseConfigured = isSupabaseConfigured();
   let initialUser: StudyUser | null = null;
 
@@ -40,8 +45,17 @@ export default async function Home() {
 
   return (
     <StudyPlatform
+      initialRoute={{
+        view: firstParam(params.view),
+        course: firstParam(params.course),
+        topic: firstParam(params.topic),
+      }}
       initialUser={initialUser}
       supabaseConfigured={supabaseConfigured}
     />
   );
+}
+
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }

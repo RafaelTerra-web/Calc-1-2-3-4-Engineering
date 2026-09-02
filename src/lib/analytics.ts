@@ -17,6 +17,8 @@ import type {
 
 const MIN_ATTEMPTS_FOR_WEAK_SIGNAL = 3;
 const WEAK_ACCURACY_THRESHOLD = 0.7;
+const MASTERY_ACCURACY_THRESHOLD = 0.7;
+const MASTERY_QUESTION_COVERAGE = 0.5;
 
 function safeAccuracy(correct: number, attempts: number) {
   return attempts === 0 ? 0 : correct / attempts;
@@ -43,9 +45,15 @@ export function buildDiagnostics(
   questions: Question[],
   attempts: Attempt[],
 ): Diagnostics {
+  // Tentativas expiradas continuam disponíveis no histórico operacional, mas
+  // não entram em nota, domínio ou recomendação pedagógica.
+  attempts = attempts.filter(
+    (attempt) => attempt.assessmentStatus !== "expired",
+  );
   const attemptsByCourse = new Map<CourseId, Attempt[]>();
   const attemptsByTopic = new Map<string, Attempt[]>();
   const attemptsByPrerequisite = new Map<string, Attempt[]>();
+  const knownPrerequisiteIds = new Set(prerequisites.map((item) => item.id));
 
   for (const attempt of attempts) {
     attemptsByCourse.set(attempt.courseId, [
@@ -57,7 +65,12 @@ export function buildDiagnostics(
       attempt,
     ]);
 
-    for (const prerequisiteId of attempt.prerequisiteIds) {
+    // O diagnóstico de base considera apenas o pré-requisito realmente
+    // atribuído ao distrator escolhido, sem inferir todos os vínculos da questão.
+    for (const prerequisiteId of new Set(attempt.prerequisiteIds)) {
+      if (!knownPrerequisiteIds.has(prerequisiteId)) {
+        continue;
+      }
       attemptsByPrerequisite.set(prerequisiteId, [
         ...(attemptsByPrerequisite.get(prerequisiteId) ?? []),
         attempt,
@@ -70,7 +83,9 @@ export function buildDiagnostics(
     const correct = courseAttempts.filter((attempt) => attempt.correct).length;
     const courseTopics = topics.filter((topic) => topic.courseId === course.id);
     const completedTopics = courseTopics.filter(
-      (topic) => (attemptsByTopic.get(topic.id) ?? []).length > 0,
+      (topic) =>
+        getTopicMastery(questions, attemptsByTopic.get(topic.id) ?? [], topic.id)
+          .mastered,
     ).length;
 
     return {
@@ -224,6 +239,28 @@ function buildRecommendations(
   }
 
   if (recommendations.length === 0) {
+    const latestMistake = sortAttemptsNewestFirst(attempts).find(
+      (attempt) => !attempt.correct,
+    );
+    const mistakenTopic = latestMistake
+      ? getTopic(latestMistake.topicId)
+      : undefined;
+
+    if (latestMistake && mistakenTopic) {
+      recommendations.push({
+        id: `retry-${latestMistake.questionId}`,
+        title: `Retomar ${mistakenTopic.title}`,
+        description:
+          "Uma resposta recente indicou dúvida. Revise a explicação e resolva uma questão diferente do mesmo tópico.",
+        actionLabel: "Tentar novamente",
+        courseId: mistakenTopic.courseId,
+        topicId: mistakenTopic.id,
+        priority: "media",
+      });
+    }
+  }
+
+  if (recommendations.length === 0) {
     const firstUnanswered =
       questions.find((question) => !attemptedQuestionIds.has(question.id)) ??
       questions[0];
@@ -251,23 +288,72 @@ export function getQuestionProgress(
   attempts: Attempt[],
   topicId: string,
 ) {
+  const mastery = getTopicMastery(questions, attempts, topicId);
+
+  return {
+    total: mastery.totalQuestions,
+    // Nome mantido para a UI existente; agora significa questões únicas acertadas.
+    answered: mastery.uniqueCorrect,
+    attempted: mastery.uniqueAttempted,
+    requiredCorrect: mastery.requiredCorrect,
+    mastered: mastery.mastered,
+    percent:
+      mastery.totalQuestions === 0
+        ? 0
+        : Math.round(
+            (mastery.uniqueCorrect / mastery.totalQuestions) * 100,
+          ),
+  };
+}
+
+/**
+ * Domínio de um tópico exige cobertura de questões distintas e desempenho
+ * consistente; repetir uma única questão não conclui todo o conteúdo.
+ */
+export function getTopicMastery(
+  questions: Question[],
+  attempts: Attempt[],
+  topicId: string,
+) {
   const topicQuestionIds = new Set(
     questions
       .filter((question) => question.topicId === topicId)
       .map((question) => question.id),
   );
-  const answeredQuestionIds = new Set(
-    attempts
-      .filter((attempt) => topicQuestionIds.has(attempt.questionId))
+  const topicAttempts = attempts.filter((attempt) =>
+    topicQuestionIds.has(attempt.questionId) &&
+    attempt.assessmentStatus !== "expired",
+  );
+  const attemptedQuestionIds = new Set(
+    topicAttempts.map((attempt) => attempt.questionId),
+  );
+  const correctQuestionIds = new Set(
+    topicAttempts
+      .filter((attempt) => attempt.correct)
       .map((attempt) => attempt.questionId),
   );
+  const totalQuestions = topicQuestionIds.size;
+  const requiredCorrect =
+    totalQuestions === 0
+      ? 0
+      : Math.min(
+          totalQuestions,
+          Math.max(1, Math.ceil(totalQuestions * MASTERY_QUESTION_COVERAGE)),
+        );
+  const correctAttempts = topicAttempts.filter(
+    (attempt) => attempt.correct,
+  ).length;
+  const accuracy = safeAccuracy(correctAttempts, topicAttempts.length);
 
   return {
-    total: topicQuestionIds.size,
-    answered: answeredQuestionIds.size,
-    percent:
-      topicQuestionIds.size === 0
-        ? 0
-        : Math.round((answeredQuestionIds.size / topicQuestionIds.size) * 100),
+    totalQuestions,
+    uniqueAttempted: attemptedQuestionIds.size,
+    uniqueCorrect: correctQuestionIds.size,
+    requiredCorrect,
+    accuracy,
+    mastered:
+      totalQuestions > 0 &&
+      correctQuestionIds.size >= requiredCorrect &&
+      accuracy >= MASTERY_ACCURACY_THRESHOLD,
   };
 }

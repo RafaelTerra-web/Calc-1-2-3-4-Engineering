@@ -47,6 +47,10 @@ export type Prerequisite = {
 export type QuestionOption = {
   id: string;
   text: string;
+  /** Diagnóstico específico exibido/registrado quando este distrator é escolhido. */
+  misconception?: string;
+  /** Pré-requisito realmente associado ao erro deste distrator. */
+  prerequisiteId?: string;
 };
 
 export type Question = {
@@ -99,6 +103,10 @@ export type Attempt = {
   difficulty: Difficulty;
   errorType: string;
   createdAt: string;
+  /** Permite combinar treino e prova no mesmo diagnóstico formativo. */
+  source?: "practice" | "official_exam";
+  /** Provas expiradas ficam no histórico, mas não medem aprendizagem. */
+  assessmentStatus?: ExamAttemptStatus;
 };
 
 export type StudyUser = {

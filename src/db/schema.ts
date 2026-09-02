@@ -115,6 +115,11 @@ export const questionOptions = pgTable(
     id: text("id").notNull(),
     text: text("text").notNull(),
     order: integer("order").notNull(),
+    errorType: text("error_type"),
+    prerequisiteId: text("prerequisite_id").references(
+      () => prerequisites.id,
+      { onDelete: "set null" },
+    ),
   },
   (table) => [primaryKey({ columns: [table.questionId, table.id] })],
 );
@@ -165,7 +170,12 @@ export const importedQuestions = pgTable(
       topicId: string;
       prerequisiteIds: string[];
       prompt: string;
-      options: Array<{ id: string; text: string }>;
+      options: Array<{
+        id: string;
+        text: string;
+        misconception?: string;
+        prerequisiteId?: string;
+      }>;
       correctOptionId: string;
       explanation: string;
       difficulty: string;
@@ -265,7 +275,7 @@ export const officialExamAnswers = pgTable("official_exam_answers", {
   courseId: courseIdEnum("course_id").notNull(),
   topicId: text("topic_id").notNull(),
   prerequisiteIds: jsonb("prerequisite_ids").$type<string[]>().notNull().default([]),
-  selectedOptionId: text("selected_option_id").notNull(),
+  selectedOptionId: text("selected_option_id"),
   correctOptionId: text("correct_option_id").notNull(),
   correct: boolean("correct").notNull(),
   timeSpentSeconds: integer("time_spent_seconds").notNull().default(0),

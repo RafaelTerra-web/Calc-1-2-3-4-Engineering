@@ -18,6 +18,8 @@ Copie `.env.example` para `.env.local` e preencha:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+INITIAL_USER_EMAIL=
+INITIAL_USER_NAME=
 INITIAL_USER_PASSWORD=
 
 # Criadas automaticamente pelo Vercel Marketplace:
@@ -37,10 +39,10 @@ npx vercel env pull .env.local --yes
 
 ## Banco e seed
 
-A migration SQL principal fica em:
+A estrutura e as regras de segurança ficam nas migrations versionadas em:
 
 ```text
-supabase/migrations/20260706170000_init_calculo_uerj.sql
+supabase/migrations/
 ```
 
 Para aplicar a migration no Supabase e popular o conteúdo inicial, rode:
@@ -53,9 +55,10 @@ npm run db:seed
 O seed:
 
 - upserta cursos, tópicos, pré-requisitos e questões autorais iniciais;
-- cria ou atualiza o usuário `rafaelmodiecai@gmail.com`;
-- usa `INITIAL_USER_PASSWORD` quando ela estiver definida no `.env.local`;
-- se `INITIAL_USER_PASSWORD` estiver vazia, imprime uma senha temporária forte no terminal.
+- só cria um usuário inicial quando `INITIAL_USER_EMAIL` estiver definido;
+- usa `INITIAL_USER_NAME` como nome opcional do perfil;
+- só altera a senha de uma conta existente quando `INITIAL_USER_PASSWORD` estiver definida;
+- para uma conta nova sem senha informada, gera e imprime uma senha temporária forte.
 
 Não salve senhas reais no repositório. Defina `INITIAL_USER_PASSWORD` apenas no `.env.local`, rode `npm run db:seed` para aplicar a troca e remova ou altere a variável quando não precisar mais dela.
 
@@ -79,12 +82,23 @@ courseId,topicId,prerequisiteIds,prompt,optionA,optionB,optionC,optionD,correctO
 calculo-1,limites,pre-fatoracao|pre-produtos-notaveis,"Calcule lim_{x -> 1} (x^2 - 1)/(x - 1).",0,1,2,"Não existe",c,"Fatore x^2 - 1 = (x - 1)(x + 1) e substitua x = 1.",basico,"Fatoração em limite","limites|fatoracao"
 ```
 
-Questões importadas ficam vinculadas à sua conta em `imported_questions`.
+O importador valida curso, tópico, pré-requisitos, alternativas duplicadas, resposta
+correta e IDs reservados. Questões importadas ficam vinculadas à sua conta em
+`imported_questions` e são usadas somente na prática pessoal; provas oficiais usam
+exclusivamente o banco de questões autoral do servidor.
+
+## Provas oficiais
+
+O navegador recebe apenas enunciados e alternativas durante a prova. Sorteio,
+agenda, limite de tentativas, cronômetro e correção são validados por funções RPC
+no Postgres. Uma tentativa interrompida pode ser retomada sem consumir uma nova.
+Datas iniciais são relativas à data do seed e continuam editáveis no painel admin.
 
 ## Verificação
 
 ```bash
 npm run lint
+npm test
 npm run build
 ```
 
