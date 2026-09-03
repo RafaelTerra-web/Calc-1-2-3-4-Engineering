@@ -1254,7 +1254,10 @@ function SignInScreen({
   const [pending, setPending] = useState(false);
   const [resetPending, setResetPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1265,7 +1268,10 @@ function SignInScreen({
       }
 
       if (new URL(window.location.href).searchParams.get("senha") === "atualizada") {
-        setSuccess("Senha atualizada. Entre com a sua nova senha.");
+        setSuccess({
+          title: "Senha atualizada",
+          message: "Tudo certo. Entre com a sua nova senha.",
+        });
       }
     }, 0);
 
@@ -1307,9 +1313,11 @@ function SignInScreen({
     const result = await onRequestPasswordReset(normalizedEmail);
 
     if (result.ok) {
-      setSuccess(
-        "Se existir uma conta com esse e-mail, enviaremos um link para redefinir a senha. Confira também a caixa de spam.",
-      );
+      setSuccess({
+        title: "Confira seu e-mail",
+        message:
+          "Se existir uma conta com esse endereço, enviaremos um link de recuperação. Confira também a caixa de spam.",
+      });
     } else {
       setError(
         result.message || "Não foi possível enviar o e-mail de recuperação agora.",
@@ -1320,143 +1328,164 @@ function SignInScreen({
   }
 
   return (
-    <main className="grid min-h-screen bg-background lg:grid-cols-[1.1fr_0.9fr]">
-      <section className="relative order-2 flex flex-col justify-between gap-10 overflow-hidden px-6 py-8 sm:px-10 lg:order-1 lg:px-14">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-        <div className="flex items-center justify-between gap-4">
-          <BrandLogo />
-          <ThemeToggleButton theme={theme} onToggleTheme={onToggleTheme} />
-        </div>
+    <main className="relative min-h-screen overflow-hidden bg-background">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,color-mix(in_oklch,var(--primary)_15%,transparent),transparent_34%),radial-gradient(circle_at_88%_82%,color-mix(in_oklch,var(--brand-calm)_12%,transparent),transparent_30%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] [background-size:32px_32px]" />
 
-        <div className="max-w-2xl space-y-8">
-          <div className="space-y-4">
-            <Badge className="rounded-md" variant="secondary">
-              Supabase Auth + diagnóstico real
+      <div className="relative mx-auto grid min-h-screen w-full max-w-7xl lg:grid-cols-[1.08fr_0.92fr]">
+        <section className="flex flex-col px-6 py-6 sm:px-10 sm:py-8 lg:px-14 lg:py-10">
+          <div className="flex items-center justify-between gap-4">
+            <BrandLogo />
+            <ThemeToggleButton theme={theme} onToggleTheme={onToggleTheme} />
+          </div>
+
+          <div className="my-auto max-w-2xl py-12 lg:py-16">
+            <Badge className="mb-6 rounded-full px-3 py-1" variant="secondary">
+              Sua jornada em Cálculo começa aqui
             </Badge>
-            <h2 className="max-w-2xl text-4xl font-semibold leading-tight sm:text-5xl">
-              Estude Cálculo com diagnóstico, base e prática guiada.
-            </h2>
-            <p className="max-w-xl text-base leading-7 text-muted-foreground">
-              Suas tentativas, questões importadas e recomendações ficam ligadas
-              à sua conta no Supabase, com revisão de pré-requisitos quando o
-              erro nasce na base.
+            <h1 className="max-w-2xl text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+              Entenda a base. Resolva com{" "}
+              <span className="text-primary">confiança.</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+              Um ambiente de estudo que identifica suas dificuldades, revisa os
+              fundamentos certos e transforma cada tentativa em progresso.
             </p>
+
+            <div className="mt-9 grid gap-3 sm:grid-cols-3">
+              <LoginBenefit icon={Target} label="Diagnóstico preciso" />
+              <LoginBenefit icon={Brain} label="Revisão da base" />
+              <LoginBenefit icon={LineChart} label="Progresso contínuo" />
+            </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <VisualTile
-              icon={Target}
-              label="Diagnóstico"
-              tone="text-rose-600 dark:text-rose-300"
-              value="para você"
-            />
-            <VisualTile
-              icon={Brain}
-              label="Base"
-              tone="text-emerald-600 dark:text-emerald-300"
-              value="pré-requisitos"
-            />
-            <VisualTile
-              icon={LineChart}
-              label="Persistência"
-              tone="text-sky-600 dark:text-sky-300"
-              value="Supabase"
-            />
-          </div>
-        </div>
+          <p className="hidden text-sm text-muted-foreground lg:block">
+            Conteúdo autoral para Engenharia UERJ · Cálculo I, II, III e IV
+          </p>
+        </section>
 
-        <p className="text-sm text-muted-foreground">
-          Conteúdo autoral com provas corrigidas no servidor e prática formativa.
-        </p>
-      </section>
-
-      <section className="order-1 flex items-center justify-center border-b border-border bg-card/50 px-6 py-10 lg:order-2 lg:border-b-0 lg:border-l">
-        <Card className="w-full max-w-md rounded-md">
-          <CardHeader>
-            <CardTitle>Acessar plataforma</CardTitle>
-            <CardDescription>
-              Entre com seu e-mail e senha para continuar seus estudos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form className="space-y-5" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input
-                  autoComplete="email"
-                  disabled={!supabaseConfigured || pending}
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
+        <section className="flex items-center justify-center px-6 pb-12 sm:px-10 lg:border-l lg:border-border/70 lg:bg-card/35 lg:px-14 lg:py-10 lg:backdrop-blur-sm">
+          <Card className="w-full max-w-md rounded-2xl border-border/80 bg-card/95 shadow-2xl shadow-primary/10">
+            <CardHeader className="space-y-3 px-6 pb-4 pt-7 sm:px-8 sm:pt-8">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
+                <GraduationCap className="h-5 w-5" aria-hidden="true" />
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-3">
+              <div className="space-y-1.5">
+                <CardTitle className="text-2xl tracking-tight">
+                  Boas-vindas de volta
+                </CardTitle>
+                <CardDescription className="leading-6">
+                  Entre para continuar exatamente de onde parou.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="px-6 pb-7 sm:px-8 sm:pb-8">
+              <form className="space-y-5" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input
+                    autoComplete="email"
+                    className="h-11 rounded-lg bg-background/70 px-3"
+                    disabled={!supabaseConfigured || pending || resetPending}
+                    id="email"
+                    placeholder="seuemail@exemplo.com"
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="password">Senha</Label>
+                  <Input
+                    autoComplete="current-password"
+                    className="h-11 rounded-lg bg-background/70 px-3"
+                    disabled={!supabaseConfigured || pending || resetPending}
+                    id="password"
+                    placeholder="Digite sua senha"
+                    required
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted-foreground">
+                    <input
+                      checked={remember}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                      disabled={pending || resetPending}
+                      onChange={(event) => setRemember(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>Manter conectado</span>
+                  </label>
                   <Button
-                    className="h-auto p-0 text-xs"
+                    className="h-auto p-0 text-sm"
                     disabled={!supabaseConfigured || pending || resetPending}
                     onClick={handlePasswordReset}
                     type="button"
                     variant="link"
                   >
-                    {resetPending ? "Enviando..." : "Esqueci minha senha"}
+                    {resetPending ? "Enviando link..." : "Esqueci minha senha"}
                   </Button>
                 </div>
-                <Input
-                  autoComplete="current-password"
-                  disabled={!supabaseConfigured || pending || resetPending}
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </div>
-              <label className="flex items-start gap-3 rounded-md border border-border p-3 text-sm">
-                <input
-                  checked={remember}
-                  className="mt-1 h-4 w-4 accent-primary"
-                  disabled={pending}
-                  onChange={(event) => setRemember(event.target.checked)}
-                  type="checkbox"
-                />
-                <span>
-                  Lembre de mim neste navegador. A senha não será salva no
-                  localStorage.
-                </span>
-              </label>
-              {error && (
-                <Alert className="rounded-md" variant="destructive">
-                  <CircleAlert className="h-4 w-4" aria-hidden="true" />
-                  <AlertTitle>Falha no login</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {success && (
-                <Alert className="rounded-md">
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                  <AlertTitle>E-mail de recuperação</AlertTitle>
-                  <AlertDescription>{success}</AlertDescription>
-                </Alert>
-              )}
-              <Button
-                className="w-full"
-                disabled={pending || resetPending}
-                type="submit"
-              >
-                {pending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+
+                {error && (
+                  <Alert className="rounded-lg" variant="destructive">
+                    <CircleAlert className="h-4 w-4" aria-hidden="true" />
+                    <AlertTitle>Não foi possível entrar</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
                 )}
-                Entrar
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </section>
+                {success && (
+                  <Alert className="rounded-lg border-primary/20 bg-primary/5">
+                    <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
+                    <AlertTitle>{success.title}</AlertTitle>
+                    <AlertDescription>{success.message}</AlertDescription>
+                  </Alert>
+                )}
+
+                <Button
+                  className="h-11 w-full rounded-lg text-sm shadow-lg shadow-primary/15"
+                  disabled={pending || resetPending}
+                  type="submit"
+                >
+                  {pending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {pending ? "Entrando..." : "Entrar na plataforma"}
+                </Button>
+
+                <p className="text-center text-xs leading-5 text-muted-foreground">
+                  Seus dados e seu progresso permanecem vinculados à sua conta.
+                </p>
+              </form>
+            </CardContent>
+          </Card>
+        </section>
+      </div>
     </main>
+  );
+}
+
+function LoginBenefit({
+  icon: Icon,
+  label,
+}: {
+  icon: typeof Target;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/70 px-3.5 py-3 shadow-sm backdrop-blur-sm">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <span className="text-sm font-medium leading-5">{label}</span>
+    </div>
   );
 }
 
@@ -4041,26 +4070,6 @@ function ViewHeader({
           {description}
         </p>
       </div>
-    </div>
-  );
-}
-
-function VisualTile({
-  icon: Icon,
-  label,
-  tone,
-  value,
-}: {
-  icon: typeof Target;
-  label: string;
-  tone: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-md border border-border bg-card p-4">
-      <Icon className={cn("h-5 w-5", tone)} aria-hidden="true" />
-      <p className="mt-3 text-sm text-muted-foreground">{label}</p>
-      <p className="font-medium">{value}</p>
     </div>
   );
 }
