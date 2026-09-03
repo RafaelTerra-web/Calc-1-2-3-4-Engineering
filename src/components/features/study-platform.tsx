@@ -231,13 +231,13 @@ type SubmitOfficialExamResponse = {
 
 type ThemeMode = "light" | "dark";
 
-const REMEMBERED_PROFILE_KEY = "calculo-uerj:remembered-profile";
-const THEME_STORAGE_KEY = "calculo-uerj:theme";
-const EXAM_DRAFT_KEY_PREFIX = "calculo-uerj:official-exam-draft:";
+const REMEMBERED_PROFILE_KEY = "calculo-em-foco:remembered-profile";
+const THEME_STORAGE_KEY = "calculo-em-foco:theme";
+const EXAM_DRAFT_KEY_PREFIX = "calculo-em-foco:official-exam-draft:";
 const LEGACY_STORAGE_KEYS = [
-  "calculo-uerj:user",
-  "calculo-uerj:attempts",
-  "calculo-uerj:imported-questions",
+  "calculo-em-foco:user",
+  "calculo-em-foco:attempts",
+  "calculo-em-foco:imported-questions",
 ];
 
 const navItems: Array<{ id: ViewId; label: string; iconSrc: string }> = [
@@ -1367,7 +1367,7 @@ function SignInScreen({
             <span>Diagnóstico</span>
             <span>Pré-requisitos</span>
             <span>Prática</span>
-            <span>Engenharia UERJ</span>
+            <span>Domínio progressivo</span>
           </div>
         </div>
       </section>

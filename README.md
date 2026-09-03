@@ -1,6 +1,6 @@
 # Cálculo em Foco
 
-MVP de estudos para Engenharia UERJ com Supabase Auth, trilhas de Cálculo 1-4, pré-requisitos, questões de múltipla escolha, diagnóstico por erro e importação de questões.
+Plataforma de estudos para domínio de Cálculo 1-4, com Supabase Auth, trilhas por pré-requisitos, questões de múltipla escolha, diagnóstico por erro e importação de questões.
 
 ## Stack
 

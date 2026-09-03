@@ -25,7 +25,7 @@ export function BrandLogo({
       {!compact && (
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase text-muted-foreground">
-            Engenharia UERJ
+            Domínio em Cálculo
           </p>
           <p className="truncate text-lg font-semibold">Cálculo em Foco</p>
         </div>
