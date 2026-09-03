@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cálculo em Foco | Domínio em Cálculo",
+  title: "Cálculo em Foco",
   description:
-    "MVP de estudos para Cálculo 1, 2, 3 e 4 com questões, pré-requisitos e dashboard de diagnóstico.",
+    "Trilhas de aprendizagem com questões, pré-requisitos e diagnóstico de domínio.",
   icons: {
     icon: [
       { url: "/icons/brand-mark.svg", type: "image/svg+xml" },

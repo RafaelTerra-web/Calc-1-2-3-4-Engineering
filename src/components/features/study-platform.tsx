@@ -1329,21 +1329,22 @@ function SignInScreen({
   }
 
   return (
-    <main className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,1.12fr)_minmax(28rem,0.88fr)]">
-      <section className="relative order-1 min-h-[32rem] overflow-hidden bg-[#10353d] text-[#f2ead9] lg:min-h-screen">
-        <Image
-          alt="Composição artística que une uma superfície matemática a uma estrutura de engenharia."
-          className="object-cover object-[62%_center] lg:object-center"
-          fill
-          priority
-          sizes="(min-width: 1024px) 56vw, 100vw"
-          src="/visuals/login-engineering-art.png"
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,30,35,0.92)_0%,rgba(7,30,35,0.67)_44%,rgba(7,30,35,0.08)_78%),linear-gradient(0deg,rgba(7,30,35,0.72)_0%,transparent_42%)]" />
+    <main className="relative min-h-screen overflow-hidden bg-[#10353d] text-[#f2ead9]">
+      <Image
+        alt=""
+        aria-hidden="true"
+        className="object-cover object-[38%_center] lg:object-center"
+        fill
+        priority
+        sizes="100vw"
+        src="/visuals/login-engineering-art-wide.png"
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,30,35,0.72)_0%,rgba(7,30,35,0.34)_52%,rgba(7,30,35,0.1)_100%),linear-gradient(0deg,rgba(7,30,35,0.5)_0%,transparent_48%)]" />
 
-        <div className="relative z-10 flex min-h-[32rem] flex-col justify-between px-6 py-6 sm:px-10 sm:py-8 lg:min-h-screen lg:px-14 lg:py-10">
+      <div className="relative z-10 grid min-h-screen lg:grid-cols-[minmax(0,1.12fr)_minmax(28rem,0.88fr)]">
+        <section className="flex min-h-[31rem] flex-col justify-between px-6 py-6 sm:px-10 sm:py-8 lg:min-h-screen lg:px-14 lg:py-10">
           <div className="flex items-center justify-between gap-4">
-            <BrandLogo className="rounded-md bg-[#f4eddf] px-3 py-2 text-[#102f36] shadow-sm [&_p:first-child]:text-[#46626a]" />
+            <BrandLogo className="text-[#f2ead9] [&_p:first-child]:text-[#c6d5d1]" />
             <ThemeToggleButtonOnArtwork
               theme={theme}
               onToggleTheme={onToggleTheme}
@@ -1352,10 +1353,10 @@ function SignInScreen({
 
           <div className="max-w-xl py-12 lg:py-16">
             <p className="mb-4 text-xs font-medium uppercase tracking-[0.22em] text-[#e6934c]">
-              Cálculo I · II · III · IV
+              Fundamentos · Aplicação · Domínio
             </p>
             <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.65rem]">
-              O rigor do cálculo. A clareza para avançar.
+              Compreenda a base. Avance com clareza.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-[#d4ddd9] sm:text-lg">
               Diagnóstico inteligente, revisão dos fundamentos e prática guiada
@@ -1367,21 +1368,18 @@ function SignInScreen({
             <span>Diagnóstico</span>
             <span>Pré-requisitos</span>
             <span>Prática</span>
-            <span>Domínio progressivo</span>
+            <span>Progresso</span>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="order-2 flex items-center justify-center border-t border-border bg-background px-6 py-12 sm:px-10 lg:min-h-screen lg:border-l lg:border-t-0 lg:px-14">
-        <div className="w-full max-w-md">
+        <section className="flex items-center justify-center px-5 pb-10 sm:px-10 lg:min-h-screen lg:px-12 lg:py-10">
+          <div className="w-full max-w-md rounded-md border border-border/70 bg-background/90 p-6 text-foreground shadow-2xl backdrop-blur-xl sm:p-8 dark:bg-background/85">
           <div className="mb-8 flex items-end justify-between gap-4 border-b border-border pb-5">
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-primary">
                 Área do aluno
               </p>
-              <h2 className="text-3xl font-semibold tracking-tight">
-                Acessar plataforma
-              </h2>
+              <h2 className="text-3xl font-semibold tracking-tight">Entrar</h2>
             </div>
             <span className="font-mono text-sm text-muted-foreground">01</span>
           </div>
@@ -1479,8 +1477,9 @@ function SignInScreen({
               </p>
             </div>
           </div>
-        </div>
-      </section>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
