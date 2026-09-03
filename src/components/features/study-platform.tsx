@@ -274,9 +274,9 @@ export function StudyPlatform({
   const initialRouteState = resolveInitialRoute(initialRoute);
   const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<StudyUser | null>(initialUser);
-  const [officialAnswerAttempts, setOfficialAnswerAttempts] = useState<Attempt[]>(
-    [],
-  );
+  const [officialAnswerAttempts, setOfficialAnswerAttempts] = useState<
+    Attempt[]
+  >([]);
   const [practiceAttempts, setPracticeAttempts] = useState<Attempt[]>([]);
   const [examAttempts, setExamAttempts] = useState<ExamAttempt[]>([]);
   const [assessments, setAssessments] = useState<OfficialAssessment[]>(() =>
@@ -301,9 +301,9 @@ export function StudyPlatform({
   const [questionStartedAt, setQuestionStartedAt] = useState(() => Date.now());
   const [loadingData, setLoadingData] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [startingAssessmentId, setStartingAssessmentId] = useState<string | null>(
-    null,
-  );
+  const [startingAssessmentId, setStartingAssessmentId] = useState<
+    string | null
+  >(null);
   const [submittingExam, setSubmittingExam] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
@@ -446,7 +446,9 @@ export function StudyPlatform({
         ? (loadedAssessments.length
             ? loadedAssessments
             : createDefaultAssessments(new Date())
-          ).find((assessment) => assessment.id === unfinishedAttempt.assessmentId)
+          ).find(
+            (assessment) => assessment.id === unfinishedAttempt.assessmentId,
+          )
         : null;
 
       if (unfinishedAssessment) {
@@ -538,7 +540,9 @@ export function StudyPlatform({
   const activeQuestion = useMemo(() => {
     if (activeQuestionId) {
       return (
-        filteredQuestions.find((question) => question.id === activeQuestionId) ??
+        filteredQuestions.find(
+          (question) => question.id === activeQuestionId,
+        ) ??
         filteredQuestions[0] ??
         null
       );
@@ -627,7 +631,7 @@ export function StudyPlatform({
         : [];
     const diagnosticErrorType = correct
       ? "acerto"
-      : selectedOption.misconception ?? activeQuestion.errorType;
+      : (selectedOption.misconception ?? activeQuestion.errorType);
 
     const { data, error } = await supabase
       .from("attempts")
@@ -687,18 +691,22 @@ export function StudyPlatform({
   function finishPracticeSession() {
     const topicAnswers = practiceSessionAnswers.filter(
       (answer) =>
-        answer.courseId === selectedCourseId && answer.topicId === selectedTopicId,
+        answer.courseId === selectedCourseId &&
+        answer.topicId === selectedTopicId,
     );
 
     if (topicAnswers.length === 0) {
-      setStatusMessage("Responda pelo menos uma questão antes de finalizar o treino.");
+      setStatusMessage(
+        "Responda pelo menos uma questão antes de finalizar o treino.",
+      );
       return;
     }
 
     setPracticeSessionAnswers((current) =>
       current.filter(
         (answer) =>
-          answer.courseId !== selectedCourseId || answer.topicId !== selectedTopicId,
+          answer.courseId !== selectedCourseId ||
+          answer.topicId !== selectedTopicId,
       ),
     );
     resetQuestionState();
@@ -756,7 +764,8 @@ export function StudyPlatform({
         ...current,
         timeSpentByQuestion: {
           ...current.timeSpentByQuestion,
-          [questionId]: (current.timeSpentByQuestion[questionId] ?? 0) + seconds,
+          [questionId]:
+            (current.timeSpentByQuestion[questionId] ?? 0) + seconds,
         },
       };
       saveExamDraft(next);
@@ -764,7 +773,10 @@ export function StudyPlatform({
     });
   }
 
-  async function submitExam(finalTiming?: { questionId: string; seconds: number }) {
+  async function submitExam(finalTiming?: {
+    questionId: string;
+    seconds: number;
+  }) {
     if (!activeExamSession || !user || !supabase || submittingExam) {
       return false;
     }
@@ -775,8 +787,8 @@ export function StudyPlatform({
           timeSpentByQuestion: {
             ...activeExamSession.timeSpentByQuestion,
             [finalTiming.questionId]:
-              (activeExamSession.timeSpentByQuestion[finalTiming.questionId] ?? 0) +
-              finalTiming.seconds,
+              (activeExamSession.timeSpentByQuestion[finalTiming.questionId] ??
+                0) + finalTiming.seconds,
           },
         }
       : activeExamSession;
@@ -822,23 +834,27 @@ export function StudyPlatform({
 
     setExamAttempts((current) => upsertExamAttempt(current, response.attempt));
     setOfficialAnswerAttempts((current) => [
-      ...response.answers.map((answer, index): Attempt => ({
-        id: `${response.attempt.id}:${answer.questionId}`,
-        questionId: answer.questionId,
-        courseId: response.attempt.courseId,
-        topicId: response.attempt.topicId,
-        prerequisiteIds: answer.prerequisiteIds,
-        selectedOptionId: answer.selectedOptionId ?? "__sem_resposta__",
-        correctOptionId: answer.correctOptionId,
-        correct: answer.correct,
-        timeSpentSeconds: answer.timeSpentSeconds ?? 0,
-        difficulty: session.questions[index]?.difficulty ?? "medio",
-        errorType: answer.errorType,
-        createdAt: response.attempt.submittedAt ?? new Date().toISOString(),
-        source: "official_exam",
-        assessmentStatus: response.attempt.status,
-      })),
-      ...current.filter((attempt) => !attempt.id.startsWith(`${response.attempt.id}:`)),
+      ...response.answers.map(
+        (answer, index): Attempt => ({
+          id: `${response.attempt.id}:${answer.questionId}`,
+          questionId: answer.questionId,
+          courseId: response.attempt.courseId,
+          topicId: response.attempt.topicId,
+          prerequisiteIds: answer.prerequisiteIds,
+          selectedOptionId: answer.selectedOptionId ?? "__sem_resposta__",
+          correctOptionId: answer.correctOptionId,
+          correct: answer.correct,
+          timeSpentSeconds: answer.timeSpentSeconds ?? 0,
+          difficulty: session.questions[index]?.difficulty ?? "medio",
+          errorType: answer.errorType,
+          createdAt: response.attempt.submittedAt ?? new Date().toISOString(),
+          source: "official_exam",
+          assessmentStatus: response.attempt.status,
+        }),
+      ),
+      ...current.filter(
+        (attempt) => !attempt.id.startsWith(`${response.attempt.id}:`),
+      ),
     ]);
     clearExamDraft(session.attemptId);
     setActiveExamSession(null);
@@ -1072,11 +1088,16 @@ export function StudyPlatform({
             {(loadingData || statusMessage) && (
               <Alert className="rounded-md">
                 {loadingData ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : (
                   <CircleAlert className="h-4 w-4" aria-hidden="true" />
                 )}
-                <AlertTitle>{loadingData ? "Carregando dados" : "Status"}</AlertTitle>
+                <AlertTitle>
+                  {loadingData ? "Carregando dados" : "Status"}
+                </AlertTitle>
                 <AlertDescription>
                   {loadingData ? "Sincronizando com Supabase." : statusMessage}
                 </AlertDescription>
@@ -1208,9 +1229,17 @@ function SetupRequiredScreen() {
             <AlertTitle>Variáveis obrigatórias</AlertTitle>
             <AlertDescription className="min-w-0">
               <ul className="mt-2 list-inside list-disc space-y-1">
-                <li><code className="break-all">NEXT_PUBLIC_SUPABASE_URL</code></li>
-                <li><code className="break-all">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code></li>
-                <li><code className="break-all">SUPABASE_SERVICE_ROLE_KEY</code></li>
+                <li>
+                  <code className="break-all">NEXT_PUBLIC_SUPABASE_URL</code>
+                </li>
+                <li>
+                  <code className="break-all">
+                    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+                  </code>
+                </li>
+                <li>
+                  <code className="break-all">SUPABASE_SERVICE_ROLE_KEY</code>
+                </li>
                 <li>
                   <code className="break-all">DATABASE_URL</code> ou{" "}
                   <code className="break-all">POSTGRES_URL_NON_POOLING</code>
@@ -1220,9 +1249,11 @@ function SetupRequiredScreen() {
           </Alert>
           <p className="text-sm leading-6 text-muted-foreground">
             Depois de provisionar, rode{" "}
-            <code className="break-all">npx vercel env pull .env.local --yes</code>{" "}
-            ou preencha <code>.env.local</code> manualmente. A tela de login aparecerá sem
-            precisar alterar código.
+            <code className="break-all">
+              npx vercel env pull .env.local --yes
+            </code>{" "}
+            ou preencha <code>.env.local</code> manualmente. A tela de login
+            aparecerá sem precisar alterar código.
           </p>
         </CardContent>
       </Card>
@@ -1268,7 +1299,9 @@ function SignInScreen({
         setEmail(remembered.email);
       }
 
-      if (new URL(window.location.href).searchParams.get("senha") === "atualizada") {
+      if (
+        new URL(window.location.href).searchParams.get("senha") === "atualizada"
+      ) {
         setSuccess({
           title: "Senha atualizada",
           message: "Tudo certo. Entre com a sua nova senha.",
@@ -1321,7 +1354,8 @@ function SignInScreen({
       });
     } else {
       setError(
-        result.message || "Não foi possível enviar o e-mail de recuperação agora.",
+        result.message ||
+          "Não foi possível enviar o e-mail de recuperação agora.",
       );
     }
 
@@ -1329,20 +1363,20 @@ function SignInScreen({
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#10353d] text-[#f2ead9]">
+    <main className="relative min-h-dvh overflow-hidden bg-[#10353d] text-[#f2ead9]">
       <Image
         alt=""
         aria-hidden="true"
-        className="object-cover object-[38%_center] lg:object-center"
+        className="object-cover object-[34%_center] lg:object-center"
         fill
         priority
         sizes="100vw"
-        src="/visuals/login-engineering-art-wide.png"
+        src="/visuals/login-engineering-art-1080p.png"
       />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,30,35,0.72)_0%,rgba(7,30,35,0.34)_52%,rgba(7,30,35,0.1)_100%),linear-gradient(0deg,rgba(7,30,35,0.5)_0%,transparent_48%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,30,35,0.74)_0%,rgba(7,30,35,0.3)_52%,rgba(7,30,35,0.08)_100%),linear-gradient(0deg,rgba(5,22,27,0.54)_0%,transparent_48%)]" />
 
-      <div className="relative z-10 grid min-h-screen lg:grid-cols-[minmax(0,1.12fr)_minmax(28rem,0.88fr)]">
-        <section className="flex min-h-[31rem] flex-col justify-between px-6 py-6 sm:px-10 sm:py-8 lg:min-h-screen lg:px-14 lg:py-10">
+      <div className="relative z-10 grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(36rem,0.92fr)] xl:grid-cols-[minmax(0,1.06fr)_minmax(40rem,0.94fr)]">
+        <section className="flex min-h-[34rem] flex-col justify-between px-6 py-7 sm:px-10 sm:py-9 lg:min-h-dvh lg:px-14 lg:py-12 xl:px-16">
           <div className="flex items-center justify-between gap-4">
             <BrandLogo className="text-[#f2ead9] [&_p:first-child]:text-[#c6d5d1]" />
             <ThemeToggleButtonOnArtwork
@@ -1372,111 +1406,139 @@ function SignInScreen({
           </div>
         </section>
 
-        <section className="flex items-center justify-center px-5 pb-10 sm:px-10 lg:min-h-screen lg:px-12 lg:py-10">
-          <div className="w-full max-w-md rounded-md border border-border/70 bg-background/90 p-6 text-foreground shadow-2xl backdrop-blur-xl sm:p-8 dark:bg-background/85">
-          <div className="mb-8 flex items-end justify-between gap-4 border-b border-border pb-5">
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-primary">
-                Área do aluno
-              </p>
-              <h2 className="text-3xl font-semibold tracking-tight">Entrar</h2>
-            </div>
-            <span className="font-mono text-sm text-muted-foreground">01</span>
-          </div>
-
-          <div>
-            <p className="mb-6 text-sm leading-6 text-muted-foreground">
-              Entre com seus dados para retomar o plano de estudos e acompanhar
-              seu progresso.
-            </p>
-            <form className="space-y-5" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input
-                  autoComplete="email"
-                  className="h-11 rounded-md px-3"
-                  disabled={!supabaseConfigured || pending || resetPending}
-                  id="email"
-                  placeholder="seuemail@exemplo.com"
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <Input
-                  autoComplete="current-password"
-                  className="h-11 rounded-md px-3"
-                  disabled={!supabaseConfigured || pending || resetPending}
-                  id="password"
-                  placeholder="Sua senha"
-                  required
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
+        <section className="flex items-center justify-center px-5 py-10 sm:px-8 sm:py-12 lg:min-h-dvh lg:px-10 xl:px-14">
+          <div className="relative w-full max-w-xl overflow-hidden rounded-[2rem] border border-white/[0.16] bg-[linear-gradient(145deg,rgba(8,30,36,0.82),rgba(4,18,24,0.62))] p-7 text-[#f5f1e8] shadow-[0_36px_120px_-32px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-inset ring-white/[0.04] backdrop-blur-[30px] backdrop-saturate-150 sm:p-10 lg:p-12">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full bg-white/[0.08] blur-3xl"
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -bottom-28 -right-20 h-72 w-72 rounded-full bg-[#4e9da3]/[0.12] blur-3xl"
+            />
+            <div className="relative z-10">
+              <div className="mb-9 flex items-end justify-between gap-4 border-b border-white/[0.14] pb-6">
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-[#e99a58]">
+                    Área do aluno
+                  </p>
+                  <h2 className="text-4xl font-semibold tracking-tight">
+                    Entrar
+                  </h2>
+                </div>
+                <span className="font-mono text-sm text-white/45">01</span>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-                  <input
-                    checked={remember}
-                    className="h-4 w-4 accent-primary"
+              <div>
+                <p className="mb-8 max-w-md text-sm leading-6 text-white/65">
+                  Entre com seus dados para retomar o plano de estudos e
+                  acompanhar seu progresso.
+                </p>
+                <form className="space-y-6" onSubmit={handleSubmit}>
+                  <div className="space-y-2.5">
+                    <Label
+                      className="text-sm font-medium text-white/85"
+                      htmlFor="email"
+                    >
+                      E-mail
+                    </Label>
+                    <Input
+                      autoComplete="email"
+                      className="h-12 rounded-xl border-white/[0.14] bg-white/[0.065] px-4 text-[#f8f4ec] shadow-inner placeholder:text-white/35 focus-visible:border-[#e99a58]/80 focus-visible:ring-[#e99a58]/25"
+                      disabled={!supabaseConfigured || pending || resetPending}
+                      id="email"
+                      placeholder="seuemail@exemplo.com"
+                      required
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <Label
+                      className="text-sm font-medium text-white/85"
+                      htmlFor="password"
+                    >
+                      Senha
+                    </Label>
+                    <Input
+                      autoComplete="current-password"
+                      className="h-12 rounded-xl border-white/[0.14] bg-white/[0.065] px-4 text-[#f8f4ec] shadow-inner placeholder:text-white/35 focus-visible:border-[#e99a58]/80 focus-visible:ring-[#e99a58]/25"
+                      disabled={!supabaseConfigured || pending || resetPending}
+                      id="password"
+                      placeholder="Sua senha"
+                      required
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <label className="flex cursor-pointer items-center gap-2.5 text-sm text-white/60">
+                      <input
+                        checked={remember}
+                        className="h-4 w-4 accent-[#e99a58]"
+                        disabled={pending || resetPending}
+                        onChange={(event) => setRemember(event.target.checked)}
+                        type="checkbox"
+                      />
+                      <span>Manter conectado</span>
+                    </label>
+                    <Button
+                      className="h-auto p-0 text-sm text-[#f0a262] hover:text-[#ffc28c]"
+                      disabled={!supabaseConfigured || pending || resetPending}
+                      onClick={handlePasswordReset}
+                      type="button"
+                      variant="link"
+                    >
+                      {resetPending ? "Enviando..." : "Esqueci minha senha"}
+                    </Button>
+                  </div>
+
+                  {error && (
+                    <Alert
+                      className="rounded-2xl border-rose-400/30 bg-rose-950/30 text-rose-100"
+                      variant="destructive"
+                    >
+                      <CircleAlert className="h-4 w-4" aria-hidden="true" />
+                      <AlertTitle>Não foi possível entrar</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                  {success && (
+                    <Alert className="rounded-2xl border-emerald-300/20 bg-emerald-950/25 text-emerald-50">
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      <AlertTitle>{success.title}</AlertTitle>
+                      <AlertDescription>{success.message}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <Button
+                    className="h-12 w-full rounded-xl bg-[#f0e4d0] text-[#0a2830] shadow-[0_12px_30px_-16px_rgba(240,228,208,0.8)] hover:bg-[#fff8ec]"
                     disabled={pending || resetPending}
-                    onChange={(event) => setRemember(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>Manter conectado</span>
-                </label>
-                <Button
-                  className="h-auto p-0 text-sm"
-                  disabled={!supabaseConfigured || pending || resetPending}
-                  onClick={handlePasswordReset}
-                  type="button"
-                  variant="link"
-                >
-                  {resetPending ? "Enviando..." : "Esqueci minha senha"}
-                </Button>
+                    type="submit"
+                  >
+                    {pending ? (
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    {pending ? "Entrando..." : "Entrar"}
+                  </Button>
+                </form>
+
+                <div className="mt-9 border-t border-white/[0.14] pt-6">
+                  <p className="text-xs leading-5 text-white/45">
+                    Seu progresso, suas tentativas e suas recomendações
+                    permanecem vinculados à sua conta.
+                  </p>
+                </div>
               </div>
-
-              {error && (
-                <Alert className="rounded-md" variant="destructive">
-                  <CircleAlert className="h-4 w-4" aria-hidden="true" />
-                  <AlertTitle>Não foi possível entrar</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {success && (
-                <Alert className="rounded-md">
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                  <AlertTitle>{success.title}</AlertTitle>
-                  <AlertDescription>{success.message}</AlertDescription>
-                </Alert>
-              )}
-
-              <Button
-                className="h-11 w-full rounded-md"
-                disabled={pending || resetPending}
-                type="submit"
-              >
-                {pending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                )}
-                {pending ? "Entrando..." : "Entrar"}
-              </Button>
-            </form>
-
-            <div className="mt-8 border-t border-border pt-5">
-              <p className="text-xs leading-5 text-muted-foreground">
-                Seu progresso, suas tentativas e suas recomendações permanecem
-                vinculados à sua conta.
-              </p>
             </div>
-          </div>
           </div>
         </section>
       </div>
@@ -1536,13 +1598,7 @@ function ThemeToggleButton({
   );
 }
 
-function IconImage({
-  className,
-  src,
-}: {
-  className?: string;
-  src: string;
-}) {
+function IconImage({ className, src }: { className?: string; src: string }) {
   return (
     <span
       aria-hidden="true"
@@ -1608,7 +1664,11 @@ function Sidebar({
               </p>
             </div>
           </div>
-          <ThemeToggleButton compact theme={theme} onToggleTheme={onToggleTheme} />
+          <ThemeToggleButton
+            compact
+            theme={theme}
+            onToggleTheme={onToggleTheme}
+          />
         </div>
       </div>
 
@@ -1628,7 +1688,11 @@ function Sidebar({
           <Separator />
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Pontos fracos</span>
-            <Badge variant={diagnostics.weakTopics.length ? "destructive" : "secondary"}>
+            <Badge
+              variant={
+                diagnostics.weakTopics.length ? "destructive" : "secondary"
+              }
+            >
               {diagnostics.weakTopics.length}
             </Badge>
           </div>
@@ -1639,7 +1703,10 @@ function Sidebar({
         <Card className="rounded-md border-amber-500/30 bg-amber-500/5">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Bell className="h-4 w-4 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+              <Bell
+                className="h-4 w-4 text-amber-600 dark:text-amber-300"
+                aria-hidden="true"
+              />
               Próximo prazo
             </CardTitle>
             <CardDescription>
@@ -1657,7 +1724,12 @@ function Sidebar({
           <p className="truncate text-sm font-medium">{user.name}</p>
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
-        <Button aria-label="Sair" onClick={onLogout} size="icon" variant="ghost">
+        <Button
+          aria-label="Sair"
+          onClick={onLogout}
+          size="icon"
+          variant="ghost"
+        >
           <LogOut className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
@@ -1793,86 +1865,95 @@ function NotificationBellMenu({
       {open && (
         <div className="absolute right-0 top-11 z-50 w-[min(23rem,calc(100vw-2rem))] rounded-md border border-border bg-popover p-4 text-popover-foreground shadow-lg ring-1 ring-foreground/10">
           <div className="space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                Notificações
-              </p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Prazos e avisos calculados pela agenda de provas.
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  Notificações
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Prazos e avisos calculados pela agenda de provas.
+                </p>
+              </div>
+              <Badge
+                className="rounded-md"
+                variant={hasNotifications ? "secondary" : "outline"}
+              >
+                {notificationCount}
+              </Badge>
             </div>
-            <Badge className="rounded-md" variant={hasNotifications ? "secondary" : "outline"}>
-              {notificationCount}
-            </Badge>
-          </div>
 
-          <Separator />
+            <Separator />
 
-          {hasNotifications ? (
-            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-              {notifications.slice(0, 6).map((notification) => (
-                <div
-                  className={cn(
-                    "rounded-md border p-3",
-                    notification.tone === "danger" &&
-                      "border-rose-500/40 bg-rose-500/10",
-                    notification.tone === "warning" &&
-                      "border-amber-500/40 bg-amber-500/10",
-                    notification.tone === "info" && "border-border bg-background/70",
-                  )}
-                  key={notification.id}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/70 text-amber-600 dark:text-amber-300">
-                      <Bell className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium leading-5">
-                        {notification.message}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Prazo: {formatNotificationDate(notification.dueAt)}
-                      </p>
+            {hasNotifications ? (
+              <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                {notifications.slice(0, 6).map((notification) => (
+                  <div
+                    className={cn(
+                      "rounded-md border p-3",
+                      notification.tone === "danger" &&
+                        "border-rose-500/40 bg-rose-500/10",
+                      notification.tone === "warning" &&
+                        "border-amber-500/40 bg-amber-500/10",
+                      notification.tone === "info" &&
+                        "border-border bg-background/70",
+                    )}
+                    key={notification.id}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/70 text-amber-600 dark:text-amber-300">
+                        <Bell className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium leading-5">
+                          {notification.message}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Prazo: {formatNotificationDate(notification.dueAt)}
+                        </p>
+                      </div>
+                      <Badge
+                        className="shrink-0 rounded-md"
+                        variant={
+                          notification.tone === "danger"
+                            ? "destructive"
+                            : "outline"
+                        }
+                      >
+                        {formatNotificationStatus(notification)}
+                      </Badge>
                     </div>
-                    <Badge
-                      className="shrink-0 rounded-md"
-                      variant={
-                        notification.tone === "danger" ? "destructive" : "outline"
-                      }
-                    >
-                      {formatNotificationStatus(notification)}
-                    </Badge>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-md border border-dashed border-border p-5 text-center">
-              <CheckCircle2
-                className="mx-auto h-6 w-6 text-emerald-600 dark:text-emerald-300"
-                aria-hidden="true"
-              />
-              <p className="mt-3 text-sm font-medium">Sem notificações agora</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Quando houver prova próxima, atraso ou aviso importante, ele aparece aqui.
-              </p>
-            </div>
-          )}
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-border p-5 text-center">
+                <CheckCircle2
+                  className="mx-auto h-6 w-6 text-emerald-600 dark:text-emerald-300"
+                  aria-hidden="true"
+                />
+                <p className="mt-3 text-sm font-medium">
+                  Sem notificações agora
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Quando houver prova próxima, atraso ou aviso importante, ele
+                  aparece aqui.
+                </p>
+              </div>
+            )}
 
-          <Button
-            className="w-full"
-            onClick={() => {
-              setOpen(false);
-              onNavigate("provas");
-            }}
-            size="sm"
-          >
-            Abrir provas
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
+            <Button
+              className="w-full"
+              onClick={() => {
+                setOpen(false);
+                onNavigate("provas");
+              }}
+              size="sm"
+            >
+              Abrir provas
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
         </div>
-      </div>
       )}
     </div>
   );
@@ -1938,7 +2019,9 @@ function DashboardView({
                 <p className="text-sm font-medium text-muted-foreground">
                   Próxima avaliação oficial
                 </p>
-                <h2 className="mt-1 text-xl font-semibold">{nextAssessment.title}</h2>
+                <h2 className="mt-1 text-xl font-semibold">
+                  {nextAssessment.title}
+                </h2>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
                   {describeAssessmentScope(nextAssessment)} ·{" "}
                   {formatAssessmentWindow(nextAssessment)}
@@ -2016,10 +2099,15 @@ function DashboardView({
               <div>
                 <CardTitle>Domínio por disciplina</CardTitle>
                 <CardDescription>
-                  Cobertura de questões distintas e precisão em práticas e provas.
+                  Cobertura de questões distintas e precisão em práticas e
+                  provas.
                 </CardDescription>
               </div>
-              <Button onClick={() => onNavigate("trilhas")} size="sm" variant="secondary">
+              <Button
+                onClick={() => onNavigate("trilhas")}
+                size="sm"
+                variant="secondary"
+              >
                 Ver trilhas
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Button>
@@ -2033,14 +2121,20 @@ function DashboardView({
                 : 0;
 
               return (
-                <div className="rounded-md border border-border p-4" key={stat.courseId}>
+                <div
+                  className="rounded-md border border-border p-4"
+                  key={stat.courseId}
+                >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <span className={cn("h-3 w-3 rounded-full", course?.accent)} />
+                      <span
+                        className={cn("h-3 w-3 rounded-full", course?.accent)}
+                      />
                       <div>
                         <p className="font-medium">{course?.title}</p>
                         <p className="text-sm text-muted-foreground">
-                          {stat.completedTopics}/{stat.totalTopics} tópicos iniciados
+                          {stat.completedTopics}/{stat.totalTopics} tópicos
+                          iniciados
                         </p>
                       </div>
                     </div>
@@ -2081,7 +2175,10 @@ function DashboardView({
               );
 
               return (
-                <div className="rounded-md border border-border p-4" key={assessment.id}>
+                <div
+                  className="rounded-md border border-border p-4"
+                  key={assessment.id}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="font-medium">{assessment.title}</p>
@@ -2098,12 +2195,16 @@ function DashboardView({
                   </div>
                   <div className="mt-3 flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Nota mínima</span>
-                    <span className="font-medium">{assessment.minimumScore}%</span>
+                    <span className="font-medium">
+                      {assessment.minimumScore}%
+                    </span>
                   </div>
                   {latestAttempt ? (
                     <div className="mt-2 flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Sua nota</span>
-                      <span className="font-semibold">{latestAttempt.score}%</span>
+                      <span className="font-semibold">
+                        {latestAttempt.score}%
+                      </span>
                     </div>
                   ) : (
                     <Button
@@ -2136,7 +2237,8 @@ function DashboardView({
           <CardHeader>
             <CardTitle>Atividade de treino</CardTitle>
             <CardDescription>
-              Exercícios comuns ficam aqui como volume de estudo, sem virar falha oficial.
+              Exercícios comuns ficam aqui como volume de estudo, sem virar
+              falha oficial.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -2148,10 +2250,15 @@ function DashboardView({
               />
             )}
             {practiceSummaries.slice(0, 4).map((summary) => (
-              <div className="rounded-md border border-border p-4" key={summary.id}>
+              <div
+                className="rounded-md border border-border p-4"
+                key={summary.id}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium">{getTopic(summary.topicId)?.title}</p>
+                    <p className="font-medium">
+                      {getTopic(summary.topicId)?.title}
+                    </p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {getCourse(summary.courseId)?.title}
                     </p>
@@ -2188,10 +2295,12 @@ function DashboardBoostPanel({
 }) {
   const weakTopic = diagnostics.weakTopics[0] ?? null;
   const weakTopicTitle = weakTopic
-    ? getTopic(weakTopic.topicId)?.title ?? "Tópico em revisão"
+    ? (getTopic(weakTopic.topicId)?.title ?? "Tópico em revisão")
     : "Nenhum ponto fraco detectado";
   const officialCompletion = examStats.totalAssessments
-    ? Math.round((examStats.completedAssessments / examStats.totalAssessments) * 100)
+    ? Math.round(
+        (examStats.completedAssessments / examStats.totalAssessments) * 100,
+      )
     : 0;
   const pendingAssessments = Math.max(
     0,
@@ -2233,7 +2342,8 @@ function DashboardBoostPanel({
             className="h-auto justify-start py-4 text-left"
             disabled={!weakTopic}
             onClick={() =>
-              weakTopic && onStartPractice(weakTopic.courseId, weakTopic.topicId)
+              weakTopic &&
+              onStartPractice(weakTopic.courseId, weakTopic.topicId)
             }
             variant="outline"
           >
@@ -2369,7 +2479,10 @@ function AssessmentNotificationsPanel({
   if (notifications.length === 0) {
     return (
       <Alert className="rounded-md border-emerald-500/30">
-        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />
+        <CheckCircle2
+          className="h-4 w-4 text-emerald-600 dark:text-emerald-300"
+          aria-hidden="true"
+        />
         <AlertTitle>Sem prazos pendentes</AlertTitle>
         <AlertDescription>
           Você não tem provas oficiais pendentes no momento.
@@ -2384,7 +2497,10 @@ function AssessmentNotificationsPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+              <Bell
+                className="h-5 w-5 text-amber-600 dark:text-amber-300"
+                aria-hidden="true"
+              />
               Notificações de prova
             </CardTitle>
             <CardDescription>
@@ -2422,12 +2538,16 @@ function AssessmentNotificationsPanel({
                     Prazo:{" "}
                     {assessment
                       ? formatAssessmentDueDate(assessment)
-                      : new Date(notification.dueAt).toLocaleDateString("pt-BR")}
+                      : new Date(notification.dueAt).toLocaleDateString(
+                          "pt-BR",
+                        )}
                   </p>
                 </div>
                 <Badge
                   className="rounded-md"
-                  variant={notification.tone === "danger" ? "destructive" : "outline"}
+                  variant={
+                    notification.tone === "danger" ? "destructive" : "outline"
+                  }
                 >
                   {notification.daysUntilDue < 0
                     ? "atrasada"
@@ -2491,15 +2611,24 @@ function TrailsView({
                 const stat = diagnostics.topicStats.find(
                   (item) => item.topicId === topic.id,
                 );
-                const progress = getQuestionProgress(questions, attempts, topic.id);
+                const progress = getQuestionProgress(
+                  questions,
+                  attempts,
+                  topic.id,
+                );
 
                 return (
-                  <div className="rounded-md border border-border p-4" key={topic.id}>
+                  <div
+                    className="rounded-md border border-border p-4"
+                    key={topic.id}
+                  >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="font-medium">{topic.title}</p>
-                          {stat?.weak && <Badge variant="destructive">revisar</Badge>}
+                          {stat?.weak && (
+                            <Badge variant="destructive">revisar</Badge>
+                          )}
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
                           {topic.description}
@@ -2559,8 +2688,12 @@ function PrerequisitesView({
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <CardTitle className="text-lg">{prerequisite.title}</CardTitle>
-                    <CardDescription>{prerequisite.description}</CardDescription>
+                    <CardTitle className="text-lg">
+                      {prerequisite.title}
+                    </CardTitle>
+                    <CardDescription>
+                      {prerequisite.description}
+                    </CardDescription>
                   </div>
                   <Badge variant={stat?.weak ? "destructive" : "secondary"}>
                     {stat?.attempts ? percent(stat.accuracy) : "sem dados"}
@@ -2571,7 +2704,11 @@ function PrerequisitesView({
                 <Progress value={(stat?.accuracy ?? 0) * 100} />
                 <div className="flex flex-wrap gap-2">
                   {prerequisite.examples.map((example) => (
-                    <Badge className="rounded-md font-mono" key={example} variant="outline">
+                    <Badge
+                      className="rounded-md font-mono"
+                      key={example}
+                      variant="outline"
+                    >
                       {example}
                     </Badge>
                   ))}
@@ -2579,7 +2716,9 @@ function PrerequisitesView({
                 {firstTopic && (
                   <Button
                     className="w-full"
-                    onClick={() => onStartPractice(firstTopic.courseId, firstTopic.id)}
+                    onClick={() =>
+                      onStartPractice(firstTopic.courseId, firstTopic.id)
+                    }
                     variant="secondary"
                   >
                     Revisar agora
@@ -2629,7 +2768,8 @@ function PracticeView({
   const selectedTopic = getTopic(selectedTopicId);
   const topicSessionAnswers = sessionAnswers.filter(
     (answer) =>
-      answer.courseId === selectedCourseId && answer.topicId === selectedTopicId,
+      answer.courseId === selectedCourseId &&
+      answer.topicId === selectedTopicId,
   );
   const topicSessionCorrect = topicSessionAnswers.filter(
     (answer) => answer.correct,
@@ -2648,7 +2788,9 @@ function PracticeView({
             <Label htmlFor="practice-course">Disciplina</Label>
             <Select
               value={selectedCourseId}
-              onValueChange={(value) => value && onSelectCourse(value as CourseId)}
+              onValueChange={(value) =>
+                value && onSelectCourse(value as CourseId)
+              }
             >
               <SelectTrigger id="practice-course">
                 <SelectValue />
@@ -2688,15 +2830,16 @@ function PracticeView({
                   ? `${topicSessionCorrect}/${topicSessionAnswers.length}`
                   : "sem respostas"}
               </p>
-              <Badge variant="secondary">
-                temporário
-              </Badge>
+              <Badge variant="secondary">temporário</Badge>
             </div>
           </div>
         </CardContent>
       </Card>
       <Alert className="rounded-md border-emerald-500/30">
-        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />
+        <CheckCircle2
+          className="h-4 w-4 text-emerald-600 dark:text-emerald-300"
+          aria-hidden="true"
+        />
         <AlertTitle>Treino formativo, nota preservada</AlertTitle>
         <AlertDescription>
           Use esta área para errar, consultar explicações e revisar vídeos. O
@@ -2829,7 +2972,8 @@ function QuestionCard({
         </div>
         <CardTitle className="leading-8">{question.prompt}</CardTitle>
         <CardDescription>
-          Feedback imediato de treino. Esta resposta não altera suas notas oficiais.
+          Feedback imediato de treino. Esta resposta não altera suas notas
+          oficiais.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -2837,7 +2981,8 @@ function QuestionCard({
           <legend className="sr-only">Escolha uma alternativa</legend>
           {question.options.map((option) => {
             const isSelected = selectedOptionId === option.id;
-            const isCorrect = feedback && option.id === question.correctOptionId;
+            const isCorrect =
+              feedback && option.id === question.correctOptionId;
             const isWrong =
               feedback && isSelected && option.id !== question.correctOptionId;
 
@@ -2865,7 +3010,8 @@ function QuestionCard({
                   aria-hidden="true"
                   className={cn(
                     "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border font-mono text-sm uppercase",
-                    isSelected && "border-primary bg-primary text-primary-foreground",
+                    isSelected &&
+                      "border-primary bg-primary text-primary-foreground",
                   )}
                 >
                   {option.id}
@@ -2906,11 +3052,15 @@ function QuestionCard({
             {pending ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
-            <SearchCheck className="h-4 w-4" aria-hidden="true" />
+              <SearchCheck className="h-4 w-4" aria-hidden="true" />
             )}
             Confirmar treino
           </Button>
-          <Button disabled={!feedback} onClick={onMoveToNextQuestion} variant="secondary">
+          <Button
+            disabled={!feedback}
+            onClick={onMoveToNextQuestion}
+            variant="secondary"
+          >
             Próxima questão
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -3101,11 +3251,18 @@ function ExamsView({
   onRecordQuestionTime: (questionId: string, seconds: number) => void;
   onSelectAnswer: (questionId: string, optionId: string) => void;
   onStartExam: (assessment: OfficialAssessment) => void;
-  onSubmitExam: (finalTiming?: { questionId: string; seconds: number }) => Promise<boolean>;
+  onSubmitExam: (finalTiming?: {
+    questionId: string;
+    seconds: number;
+  }) => Promise<boolean>;
   pending: boolean;
   referenceDate: string;
 }) {
-  const examStats = buildOfficialExamStats(assessments, attempts, referenceDate);
+  const examStats = buildOfficialExamStats(
+    assessments,
+    attempts,
+    referenceDate,
+  );
 
   if (activeSession) {
     return (
@@ -3130,11 +3287,14 @@ function ExamsView({
 
       {notifications.length > 0 && (
         <Alert className="rounded-md border-amber-500/35">
-          <Bell className="h-4 w-4 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+          <Bell
+            className="h-4 w-4 text-amber-600 dark:text-amber-300"
+            aria-hidden="true"
+          />
           <AlertTitle>{notifications[0]?.message}</AlertTitle>
           <AlertDescription>
-            O prazo mais próximo fica destacado; os cards abaixo mostram todas as
-            provas disponíveis, programadas ou atrasadas.
+            O prazo mais próximo fica destacado; os cards abaixo mostram todas
+            as provas disponíveis, programadas ou atrasadas.
           </AlertDescription>
         </Alert>
       )}
@@ -3153,7 +3313,8 @@ function ExamsView({
           label="Conclusão"
           tone="text-sky-600 dark:text-sky-300"
           value={`${Math.round(
-            (examStats.completedAssessments / Math.max(1, examStats.totalAssessments)) *
+            (examStats.completedAssessments /
+              Math.max(1, examStats.totalAssessments)) *
               100,
           )}%`}
         />
@@ -3198,8 +3359,7 @@ function ExamAssessmentCard({
   );
   const bestAttempt = assessmentAttempts
     .filter(
-      (attempt) =>
-        attempt.status === "submitted" || attempt.status === "late",
+      (attempt) => attempt.status === "submitted" || attempt.status === "late",
     )
     .sort((left, right) => right.score - left.score)[0];
   const inProgress = assessmentAttempts.find(
@@ -3223,22 +3383,36 @@ function ExamAssessmentCard({
               {assessment.description}
             </CardDescription>
           </div>
-          <Badge className="rounded-md" variant={status === "disponível" ? "secondary" : "outline"}>
+          <Badge
+            className="rounded-md"
+            variant={status === "disponível" ? "secondary" : "outline"}
+          >
             {status}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-3">
-          <MetricInline label="Questões" value={String(assessment.questionCount)} />
-          <MetricInline label="Nota mínima" value={`${assessment.minimumScore}%`} />
-          <MetricInline label="Tentativas" value={`${attemptsLeft}/${assessment.maxAttempts}`} />
+          <MetricInline
+            label="Questões"
+            value={String(assessment.questionCount)}
+          />
+          <MetricInline
+            label="Nota mínima"
+            value={`${assessment.minimumScore}%`}
+          />
+          <MetricInline
+            label="Tentativas"
+            value={`${attemptsLeft}/${assessment.maxAttempts}`}
+          />
         </div>
         <div className="rounded-md border border-border p-3 text-sm">
           <div className="flex items-start gap-3">
             <CalendarDays className="mt-0.5 h-4 w-4 text-muted-foreground" />
             <div>
-              <p className="font-medium">{describeAssessmentScope(assessment)}</p>
+              <p className="font-medium">
+                {describeAssessmentScope(assessment)}
+              </p>
               <p className="mt-1 text-muted-foreground">
                 {formatAssessmentWindow(assessment)}
               </p>
@@ -3247,8 +3421,9 @@ function ExamAssessmentCard({
         </div>
         {bestAttempt && (
           <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
-            Melhor resultado: <span className="font-semibold">{bestAttempt.score}%</span>{" "}
-            ({bestAttempt.correctCount}/{bestAttempt.questionCount})
+            Melhor resultado:{" "}
+            <span className="font-semibold">{bestAttempt.score}%</span> (
+            {bestAttempt.correctCount}/{bestAttempt.questionCount})
           </div>
         )}
         <Button
@@ -3256,7 +3431,11 @@ function ExamAssessmentCard({
           disabled={disabled}
           onClick={() => onStartExam(assessment)}
         >
-          {inProgress ? "Retomar prova" : bestAttempt ? "Refazer prova" : "Iniciar prova"}
+          {inProgress
+            ? "Retomar prova"
+            : bestAttempt
+              ? "Refazer prova"
+              : "Iniciar prova"}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>
       </CardContent>
@@ -3460,7 +3639,9 @@ function AdminAssessmentCard({
         </div>
 
         <Button disabled={pending} onClick={handleSave}>
-          {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          {pending && (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          )}
           Salvar configuração
         </Button>
       </CardContent>
@@ -3483,7 +3664,8 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
       iconSrc: "/icons/playlist-practice.svg",
       kind: "practice",
       title: "Prática e resolução",
-      description: "Vídeos de exercícios resolvidos conectados às questões do app.",
+      description:
+        "Vídeos de exercícios resolvidos conectados às questões do app.",
     },
     {
       accent: "border-l-sky-400/80",
@@ -3491,7 +3673,8 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
       iconSrc: "/icons/playlist-theory.svg",
       kind: "theory",
       title: "Teoria e fundamentos",
-      description: "Aulas conceituais para entender o assunto antes de praticar.",
+      description:
+        "Aulas conceituais para entender o assunto antes de praticar.",
     },
     {
       accent: "border-l-emerald-400/80",
@@ -3499,7 +3682,8 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
       iconSrc: "/icons/playlist-prerequisite.svg",
       kind: "prerequisite",
       title: "Pré-requisitos para entender",
-      description: "Base de álgebra, funções, trigonometria e geometria analítica.",
+      description:
+        "Base de álgebra, funções, trigonometria e geometria analítica.",
     },
   ];
 
@@ -3543,7 +3727,9 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
                       <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                         {group.focus}
                       </p>
-                      <CardTitle className="mt-1 text-lg">{group.title}</CardTitle>
+                      <CardTitle className="mt-1 text-lg">
+                        {group.title}
+                      </CardTitle>
                     </div>
                   </div>
                   <Badge className="rounded-md" variant="secondary">
@@ -3566,7 +3752,10 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
 
               <CardContent className="flex flex-1 flex-col gap-4">
                 <div className="grid grid-cols-3 gap-2">
-                  <PlaylistMetric label="Views" value={formatViews(totalViews)} />
+                  <PlaylistMetric
+                    label="Views"
+                    value={formatViews(totalViews)}
+                  />
                   <PlaylistMetric
                     label="Questões"
                     value={String(relatedQuestionCount)}
@@ -3625,7 +3814,9 @@ function PlaylistsView({ questions }: { questions: Question[] }) {
                 <Separator />
 
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold">Biblioteca da playlist</p>
+                  <p className="text-sm font-semibold">
+                    Biblioteca da playlist
+                  </p>
                   <Badge className="rounded-md" variant="outline">
                     Mais vistos primeiro
                   </Badge>
@@ -3679,7 +3870,9 @@ function PlaylistLibraryItem({
   video: VideoResource;
 }) {
   const relatedQuestions = (video.questionIds ?? [])
-    .map((questionId) => questions.find((question) => question.id === questionId))
+    .map((questionId) =>
+      questions.find((question) => question.id === questionId),
+    )
     .filter((question): question is Question => Boolean(question));
 
   return (
@@ -3744,7 +3937,10 @@ function PlaylistLibraryItem({
           </summary>
           <ul className="mt-3 space-y-2">
             {relatedQuestions.map((question) => (
-              <li className="text-sm leading-6 text-muted-foreground" key={question.id}>
+              <li
+                className="text-sm leading-6 text-muted-foreground"
+                key={question.id}
+              >
                 <span className="font-medium text-foreground">
                   {getCourse(question.courseId)?.shortTitle} /{" "}
                   {getTopic(question.topicId)?.title}:
@@ -3815,7 +4011,10 @@ function ImportView({
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button disabled={pending} onClick={validateAndImport}>
                 {pending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : (
                   <Upload className="h-4 w-4" aria-hidden="true" />
                 )}
@@ -3835,10 +4034,15 @@ function ImportView({
         <Card className="rounded-md">
           <CardHeader>
             <CardTitle>Status</CardTitle>
-            <CardDescription>Resultado da validação e importação.</CardDescription>
+            <CardDescription>
+              Resultado da validação e importação.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <MetricInline label="Válidas no texto" value={String(previewCount)} />
+            <MetricInline
+              label="Válidas no texto"
+              value={String(previewCount)}
+            />
             <MetricInline
               label="Importadas ativas"
               value={String(importedQuestions.length)}
@@ -3875,7 +4079,9 @@ function RecommendationsPanel({
     <Card className="rounded-md">
       <CardHeader>
         <CardTitle>Próximas recomendações</CardTitle>
-        <CardDescription>Calculadas com base nas tentativas salvas.</CardDescription>
+        <CardDescription>
+          Calculadas com base nas tentativas salvas.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {diagnostics.recommendations.map((recommendation) => (
@@ -3902,7 +4108,9 @@ function RecommendationItem({
       <div className="flex items-center gap-2">
         <Badge
           className="rounded-md"
-          variant={recommendation.priority === "alta" ? "destructive" : "secondary"}
+          variant={
+            recommendation.priority === "alta" ? "destructive" : "secondary"
+          }
         >
           {recommendation.priority}
         </Badge>
@@ -3913,7 +4121,9 @@ function RecommendationItem({
       </p>
       <Button
         className="mt-4 w-full"
-        onClick={() => onStartPractice(recommendation.courseId, recommendation.topicId)}
+        onClick={() =>
+          onStartPractice(recommendation.courseId, recommendation.topicId)
+        }
         size="sm"
         variant="secondary"
       >
@@ -3935,7 +4145,9 @@ function WeakTopicsPanel({
     <Card className="rounded-md">
       <CardHeader>
         <CardTitle>Onde melhorar</CardTitle>
-        <CardDescription>Tópicos abaixo de 70% ou com erros recentes.</CardDescription>
+        <CardDescription>
+          Tópicos abaixo de 70% ou com erros recentes.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {diagnostics.weakTopics.length === 0 && (
@@ -3946,7 +4158,10 @@ function WeakTopicsPanel({
           />
         )}
         {diagnostics.weakTopics.slice(0, 5).map((stat) => (
-          <div className="rounded-md border border-border p-4" key={stat.topicId}>
+          <div
+            className="rounded-md border border-border p-4"
+            key={stat.topicId}
+          >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="font-medium">{getTopic(stat.topicId)?.title}</p>
@@ -4105,7 +4320,10 @@ function EmptyState({
 }) {
   return (
     <div className="rounded-md border border-dashed border-border p-6 text-center">
-      <Icon className="mx-auto h-7 w-7 text-muted-foreground" aria-hidden="true" />
+      <Icon
+        className="mx-auto h-7 w-7 text-muted-foreground"
+        aria-hidden="true"
+      />
       <p className="mt-3 font-medium">{title}</p>
       <p className="mt-1 text-sm text-muted-foreground">{description}</p>
     </div>
@@ -4147,7 +4365,11 @@ function parseSubmitOfficialExamResponse(
 ): SubmitOfficialExamResponse | null {
   if (!isRecord(value) || !Array.isArray(value.answers)) return null;
   const attempt = parseRpcExamAttempt(value.attempt);
-  if (!attempt || typeof value.score !== "number" || typeof value.correctCount !== "number") {
+  if (
+    !attempt ||
+    typeof value.score !== "number" ||
+    typeof value.correctCount !== "number"
+  ) {
     return null;
   }
   const answers = value.answers.filter(isSubmittedOfficialAnswer);
@@ -4158,7 +4380,12 @@ function parseSubmitOfficialExamResponse(
 
 function parseRpcExamAttempt(value: unknown): ExamAttempt | null {
   if (!isRecord(value)) return null;
-  const statuses: ExamAttemptStatus[] = ["in_progress", "submitted", "expired", "late"];
+  const statuses: ExamAttemptStatus[] = [
+    "in_progress",
+    "submitted",
+    "expired",
+    "late",
+  ];
   if (
     typeof value.id !== "string" ||
     typeof value.assessmentId !== "string" ||
@@ -4173,7 +4400,8 @@ function parseRpcExamAttempt(value: unknown): ExamAttempt | null {
     !Array.isArray(value.questionIds) ||
     typeof value.startedAt !== "string" ||
     typeof value.createdAt !== "string"
-  ) return null;
+  )
+    return null;
   return value as unknown as ExamAttempt;
 }
 
@@ -4187,16 +4415,22 @@ function isOfficialExamQuestion(value: unknown): value is OfficialExamQuestion {
       Array.isArray(value.options) &&
       value.options.length >= 2 &&
       value.options.every(
-        (option) => isRecord(option) && typeof option.id === "string" && typeof option.text === "string",
+        (option) =>
+          isRecord(option) &&
+          typeof option.id === "string" &&
+          typeof option.text === "string",
       ),
   );
 }
 
-function isSubmittedOfficialAnswer(value: unknown): value is SubmittedOfficialAnswer {
+function isSubmittedOfficialAnswer(
+  value: unknown,
+): value is SubmittedOfficialAnswer {
   return Boolean(
     isRecord(value) &&
       typeof value.questionId === "string" &&
-      (typeof value.selectedOptionId === "string" || value.selectedOptionId === null) &&
+      (typeof value.selectedOptionId === "string" ||
+        value.selectedOptionId === null) &&
       typeof value.correctOptionId === "string" &&
       typeof value.correct === "boolean" &&
       typeof value.explanation === "string" &&
@@ -4210,16 +4444,26 @@ function responseToExamSession(
   assessment: OfficialAssessment,
 ): OfficialExamSession {
   const draft = readExamDraft(response.attempt.id);
-  const questionIds = new Set(response.questions.map((question) => question.id));
+  const questionIds = new Set(
+    response.questions.map((question) => question.id),
+  );
   const selectedAnswers = Object.fromEntries(
-    Object.entries(draft?.selectedAnswers ?? {}).filter(([questionId, optionId]) => {
-      const question = response.questions.find((item) => item.id === questionId);
-      return questionIds.has(questionId) && question?.options.some((option) => option.id === optionId);
-    }),
+    Object.entries(draft?.selectedAnswers ?? {}).filter(
+      ([questionId, optionId]) => {
+        const question = response.questions.find(
+          (item) => item.id === questionId,
+        );
+        return (
+          questionIds.has(questionId) &&
+          question?.options.some((option) => option.id === optionId)
+        );
+      },
+    ),
   );
   const timeSpentByQuestion = Object.fromEntries(
     Object.entries(draft?.timeSpentByQuestion ?? {}).filter(
-      ([questionId, seconds]) => questionIds.has(questionId) && Number.isFinite(seconds) && seconds >= 0,
+      ([questionId, seconds]) =>
+        questionIds.has(questionId) && Number.isFinite(seconds) && seconds >= 0,
     ),
   );
   return {
@@ -4253,10 +4497,16 @@ function saveExamDraft(session: OfficialExamSession) {
 
 function readExamDraft(attemptId: string) {
   try {
-    const value = window.localStorage.getItem(`${EXAM_DRAFT_KEY_PREFIX}${attemptId}`);
+    const value = window.localStorage.getItem(
+      `${EXAM_DRAFT_KEY_PREFIX}${attemptId}`,
+    );
     if (!value) return null;
     const parsed: unknown = JSON.parse(value);
-    if (!isRecord(parsed) || !isRecord(parsed.selectedAnswers) || !isRecord(parsed.timeSpentByQuestion)) {
+    if (
+      !isRecord(parsed) ||
+      !isRecord(parsed.selectedAnswers) ||
+      !isRecord(parsed.timeSpentByQuestion)
+    ) {
       return null;
     }
     return parsed as {
@@ -4346,7 +4596,10 @@ function authUserToStudyUser(authUser: {
 
   return {
     id: authUser.id,
-    name: authUser.user_metadata?.name ?? authUser.user_metadata?.full_name ?? email,
+    name:
+      authUser.user_metadata?.name ??
+      authUser.user_metadata?.full_name ??
+      email,
     email,
     role: "student",
     createdAt: authUser.created_at ?? new Date().toISOString(),
@@ -4362,7 +4615,11 @@ function rememberProfile(user: StudyUser | null) {
 
     window.localStorage.setItem(
       REMEMBERED_PROFILE_KEY,
-      JSON.stringify({ email: user.email, name: user.name, rememberedAt: new Date().toISOString() }),
+      JSON.stringify({
+        email: user.email,
+        name: user.name,
+        rememberedAt: new Date().toISOString(),
+      }),
     );
   } catch {
     return;
@@ -4372,7 +4629,9 @@ function rememberProfile(user: StudyUser | null) {
 function readRememberedProfile(): { email?: string; name?: string } | null {
   try {
     const value = window.localStorage.getItem(REMEMBERED_PROFILE_KEY);
-    return value ? (JSON.parse(value) as { email?: string; name?: string }) : null;
+    return value
+      ? (JSON.parse(value) as { email?: string; name?: string })
+      : null;
   } catch {
     return null;
   }
@@ -4441,7 +4700,7 @@ function resolveInitialRoute(route?: {
   const courseTopics = getTopicsByCourse(courseId);
   const topicId = courseTopics.some((topic) => topic.id === route?.topic)
     ? route!.topic!
-    : courseTopics[0]?.id ?? "limites";
+    : (courseTopics[0]?.id ?? "limites");
 
   return { view, courseId, topicId };
 }
