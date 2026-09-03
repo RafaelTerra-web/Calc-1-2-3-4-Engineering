@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   ArrowRight,
   Bell,
@@ -1328,48 +1329,77 @@ function SignInScreen({
   }
 
   return (
-    <main className="grid min-h-screen bg-background lg:grid-cols-[1.1fr_0.9fr]">
-      <section className="relative order-2 flex flex-col justify-between gap-10 overflow-hidden px-6 py-8 sm:px-10 lg:order-1 lg:px-14">
-        <div className="absolute inset-x-0 top-0 h-px bg-primary/50" />
-        <div className="flex items-center justify-between gap-4">
-          <BrandLogo />
-          <ThemeToggleButton theme={theme} onToggleTheme={onToggleTheme} />
-        </div>
+    <main className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,1.12fr)_minmax(28rem,0.88fr)]">
+      <section className="relative order-1 min-h-[32rem] overflow-hidden bg-[#10353d] text-[#f2ead9] lg:min-h-screen">
+        <Image
+          alt="Composição artística que une uma superfície matemática a uma estrutura de engenharia."
+          className="object-cover object-[62%_center] lg:object-center"
+          fill
+          priority
+          sizes="(min-width: 1024px) 56vw, 100vw"
+          src="/visuals/login-engineering-art.png"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,30,35,0.92)_0%,rgba(7,30,35,0.67)_44%,rgba(7,30,35,0.08)_78%),linear-gradient(0deg,rgba(7,30,35,0.72)_0%,transparent_42%)]" />
 
-        <div className="max-w-2xl space-y-6">
-          <p className="text-sm font-medium uppercase tracking-[0.16em] text-primary">
-            Cálculo I · II · III · IV
-          </p>
-          <h1 className="max-w-2xl text-4xl font-semibold leading-tight sm:text-5xl">
-            Estude Cálculo com diagnóstico, base e prática guiada.
-          </h1>
-          <p className="max-w-xl text-base leading-7 text-muted-foreground">
-            A plataforma identifica onde está a dificuldade e indica os
-            pré-requisitos certos para você avançar com consistência.
-          </p>
-        </div>
+        <div className="relative z-10 flex min-h-[32rem] flex-col justify-between px-6 py-6 sm:px-10 sm:py-8 lg:min-h-screen lg:px-14 lg:py-10">
+          <div className="flex items-center justify-between gap-4">
+            <BrandLogo className="rounded-md bg-[#f4eddf] px-3 py-2 text-[#102f36] shadow-sm [&_p:first-child]:text-[#46626a]" />
+            <ThemeToggleButtonOnArtwork
+              theme={theme}
+              onToggleTheme={onToggleTheme}
+            />
+          </div>
 
-        <p className="text-sm text-muted-foreground">
-          Conteúdo autoral para estudantes de Engenharia UERJ.
-        </p>
+          <div className="max-w-xl py-12 lg:py-16">
+            <p className="mb-4 text-xs font-medium uppercase tracking-[0.22em] text-[#e6934c]">
+              Cálculo I · II · III · IV
+            </p>
+            <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.65rem]">
+              O rigor do cálculo. A clareza para avançar.
+            </h1>
+            <p className="mt-5 max-w-lg text-base leading-7 text-[#d4ddd9] sm:text-lg">
+              Diagnóstico inteligente, revisão dos fundamentos e prática guiada
+              para transformar dificuldade em domínio.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#f2ead9]/25 pt-4 text-xs uppercase tracking-[0.14em] text-[#d4ddd9]">
+            <span>Diagnóstico</span>
+            <span>Pré-requisitos</span>
+            <span>Prática</span>
+            <span>Engenharia UERJ</span>
+          </div>
+        </div>
       </section>
 
-      <section className="order-1 flex items-center justify-center border-b border-border bg-card/50 px-6 py-10 lg:order-2 lg:border-b-0 lg:border-l">
-        <Card className="w-full max-w-md rounded-md">
-          <CardHeader>
-            <CardTitle>Acessar plataforma</CardTitle>
-            <CardDescription>
-              Entre com seu e-mail e senha para continuar seus estudos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+      <section className="order-2 flex items-center justify-center border-t border-border bg-background px-6 py-12 sm:px-10 lg:min-h-screen lg:border-l lg:border-t-0 lg:px-14">
+        <div className="w-full max-w-md">
+          <div className="mb-8 flex items-end justify-between gap-4 border-b border-border pb-5">
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-primary">
+                Área do aluno
+              </p>
+              <h2 className="text-3xl font-semibold tracking-tight">
+                Acessar plataforma
+              </h2>
+            </div>
+            <span className="font-mono text-sm text-muted-foreground">01</span>
+          </div>
+
+          <div>
+            <p className="mb-6 text-sm leading-6 text-muted-foreground">
+              Entre com seus dados para retomar o plano de estudos e acompanhar
+              seu progresso.
+            </p>
             <form className="space-y-5" onSubmit={handleSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail</Label>
                 <Input
                   autoComplete="email"
+                  className="h-11 rounded-md px-3"
                   disabled={!supabaseConfigured || pending || resetPending}
                   id="email"
+                  placeholder="seuemail@exemplo.com"
                   required
                   type="email"
                   value={email}
@@ -1380,8 +1410,10 @@ function SignInScreen({
                 <Label htmlFor="password">Senha</Label>
                 <Input
                   autoComplete="current-password"
+                  className="h-11 rounded-md px-3"
                   disabled={!supabaseConfigured || pending || resetPending}
                   id="password"
+                  placeholder="Sua senha"
                   required
                   type="password"
                   value={password}
@@ -1427,7 +1459,7 @@ function SignInScreen({
               )}
 
               <Button
-                className="w-full"
+                className="h-11 w-full rounded-md"
                 disabled={pending || resetPending}
                 type="submit"
               >
@@ -1439,10 +1471,42 @@ function SignInScreen({
                 {pending ? "Entrando..." : "Entrar"}
               </Button>
             </form>
-          </CardContent>
-        </Card>
+
+            <div className="mt-8 border-t border-border pt-5">
+              <p className="text-xs leading-5 text-muted-foreground">
+                Seu progresso, suas tentativas e suas recomendações permanecem
+                vinculados à sua conta.
+              </p>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
+  );
+}
+
+function ThemeToggleButtonOnArtwork({
+  onToggleTheme,
+  theme,
+}: {
+  onToggleTheme: () => void;
+  theme: ThemeMode;
+}) {
+  const isDark = theme === "dark";
+  const Icon = isDark ? Sun : Moon;
+
+  return (
+    <Button
+      aria-label={isDark ? "Ativar tema claro" : "Ativar tema escuro"}
+      className="border-[#f2ead9]/40 bg-[#10353d]/70 text-[#f2ead9] hover:bg-[#10353d] hover:text-[#f2ead9]"
+      onClick={onToggleTheme}
+      size="sm"
+      type="button"
+      variant="outline"
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      <span>{isDark ? "Tema claro" : "Tema escuro"}</span>
+    </Button>
   );
 }
 
