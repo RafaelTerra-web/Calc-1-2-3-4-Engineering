@@ -973,6 +973,16 @@ export function StudyPlatform({
         supabaseConfigured={supabaseConfigured}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onRequestPasswordReset={async (email) => {
+          const redirectTo = `${window.location.origin}/auth/callback?next=/redefinir-senha`;
+          const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo,
+          });
+
+          return error
+            ? { ok: false as const, message: error.message }
+            : { ok: true as const };
+        }}
         onSignIn={async ({ email, password, remember }) => {
           const { data, error } = await supabase.auth.signInWithPassword({
             email,
@@ -1221,6 +1231,7 @@ function SetupRequiredScreen() {
 
 function SignInScreen({
   onSignIn,
+  onRequestPasswordReset,
   supabaseConfigured,
   theme,
   onToggleTheme,
@@ -1230,6 +1241,9 @@ function SignInScreen({
     password: string;
     remember: boolean;
   }) => Promise<{ ok: true } | { ok: false; message: string }>;
+  onRequestPasswordReset: (
+    email: string,
+  ) => Promise<{ ok: true } | { ok: false; message: string }>;
   supabaseConfigured: boolean;
   theme: ThemeMode;
   onToggleTheme: () => void;
@@ -1238,7 +1252,9 @@ function SignInScreen({
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [pending, setPending] = useState(false);
+  const [resetPending, setResetPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1246,6 +1262,10 @@ function SignInScreen({
 
       if (remembered?.email) {
         setEmail(remembered.email);
+      }
+
+      if (new URL(window.location.href).searchParams.get("senha") === "atualizada") {
+        setSuccess("Senha atualizada. Entre com a sua nova senha.");
       }
     }, 0);
 
@@ -1256,6 +1276,7 @@ function SignInScreen({
     event.preventDefault();
     setPending(true);
     setError(null);
+    setSuccess(null);
 
     const result = await onSignIn({
       email: email.trim(),
@@ -1268,6 +1289,34 @@ function SignInScreen({
     }
 
     setPending(false);
+  }
+
+  async function handlePasswordReset() {
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      setError("Informe um e-mail válido para receber o link de recuperação.");
+      setSuccess(null);
+      return;
+    }
+
+    setResetPending(true);
+    setError(null);
+    setSuccess(null);
+
+    const result = await onRequestPasswordReset(normalizedEmail);
+
+    if (result.ok) {
+      setSuccess(
+        "Se existir uma conta com esse e-mail, enviaremos um link para redefinir a senha. Confira também a caixa de spam.",
+      );
+    } else {
+      setError(
+        result.message || "Não foi possível enviar o e-mail de recuperação agora.",
+      );
+    }
+
+    setResetPending(false);
   }
 
   return (
@@ -1326,7 +1375,7 @@ function SignInScreen({
           <CardHeader>
             <CardTitle>Acessar plataforma</CardTitle>
             <CardDescription>
-              Use a senha temporária criada pelo script de seed do Supabase.
+              Entre com seu e-mail e senha para continuar seus estudos.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1343,10 +1392,21 @@ function SignInScreen({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="password">Senha</Label>
+                  <Button
+                    className="h-auto p-0 text-xs"
+                    disabled={!supabaseConfigured || pending || resetPending}
+                    onClick={handlePasswordReset}
+                    type="button"
+                    variant="link"
+                  >
+                    {resetPending ? "Enviando..." : "Esqueci minha senha"}
+                  </Button>
+                </div>
                 <Input
                   autoComplete="current-password"
-                  disabled={!supabaseConfigured || pending}
+                  disabled={!supabaseConfigured || pending || resetPending}
                   id="password"
                   type="password"
                   value={password}
@@ -1373,7 +1433,18 @@ function SignInScreen({
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              <Button className="w-full" disabled={pending} type="submit">
+              {success && (
+                <Alert className="rounded-md">
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  <AlertTitle>E-mail de recuperação</AlertTitle>
+                  <AlertDescription>{success}</AlertDescription>
+                </Alert>
+              )}
+              <Button
+                className="w-full"
+                disabled={pending || resetPending}
+                type="submit"
+              >
                 {pending ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
